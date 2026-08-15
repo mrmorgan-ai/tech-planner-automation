@@ -216,3 +216,33 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+.claude/
+
+# ---------------------------------------------------------------------------
+# tech-planner
+# ---------------------------------------------------------------------------
+
+# Real configuration. config/settings.example.py is the tracked template.
+# Nothing here is a credential — the tool uses your Claude Code login — but the
+# org, project and area paths are yours, not the repository's.
+config/settings.py
+
+# Context documents the user attaches for a planning session.
+context/
+
+# Clean working directory the agent subprocess runs in. Kept (empty) in git so
+# a fresh clone has one, but nothing that lands in it belongs to the repo.
+workspace/*
+!workspace/.gitkeep
+
+# Saved planning sessions.
+.tech-planner/
+
+# Node, for the Phase 3 web app.
+node_modules/
+dist/
+
+# Lockfiles ARE tracked, deliberately — both uv.lock and package-lock.json.
+!uv.lock
+!package-lock.json
