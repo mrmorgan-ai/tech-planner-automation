@@ -71,6 +71,48 @@ def check_gate(path: Path) -> list[str]:
     return problems
 
 
+def check_api(path: Path) -> str:
+    """Build the HTTP adapter and run one fake pass through its plumbing.
+
+    No agent and no server: a stub event source stands in for a planning run,
+    which exercises the parts with no other cheap check — event serialization,
+    replay to a late subscriber, and the reaping that stops a run when the last
+    reader goes away. Those only otherwise fail in front of a browser.
+    """
+    import asyncio
+
+    from tech_planner.adapters.driving.http.api import create_app
+    from tech_planner.adapters.driving.http.runs import RunRegistry
+    from tech_planner.adapters.driving.http.serialization import sse
+    from tech_planner.application.events import Notice, ProposalReady
+    from tech_planner.domain.model.plan_proposal import PlanProposal
+    from tech_planner.domain.model.work_item import UserStory
+
+    app = create_app(path)
+    routes = sum(1 for r in app.routes if getattr(r, "methods", None))
+
+    async def source():
+        yield Notice(message="stub run")
+        yield ProposalReady(
+            proposal=PlanProposal(items=(UserStory(ref="US-1", title="Stub"),))
+        )
+
+    async def exercise() -> int:
+        runs = RunRegistry()
+        run = runs.start("stub", source)
+        await run.wait()
+        # Subscribing after the run finished must still replay all of it —
+        # that is what lets a browser refresh mid-plan without losing it.
+        frames = [sse(name, payload) async for name, payload in run.subscribe()]
+        await runs.shutdown()
+        return len(frames)
+
+    frames = asyncio.run(exercise())
+    if frames < 2:
+        raise AssertionError(f"a finished run replayed {frames} events, expected 2")
+    return f"{routes} routes, run replay and teardown clean"
+
+
 def main() -> int:
     config = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("config/settings.py")
 
@@ -93,6 +135,12 @@ def main() -> int:
     if problems:
         return 1
     print("gate         propose cannot write; create can")
+
+    try:
+        print(f"api          {check_api(config)}")
+    except Exception as exc:  # noqa: BLE001 - the message is the whole point
+        print(f"FAIL  api     {exc}")
+        return 1
     return 0
 
 

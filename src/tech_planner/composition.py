@@ -21,6 +21,7 @@ from tech_planner.adapters.driven.persistence.capacity_repository import (
     JsonCapacityRepository,
 )
 from tech_planner.adapters.driven.persistence.session_repository import JsonSessionRepository
+from tech_planner.application.ports.agent_gateway import AgentGateway
 from tech_planner.application.settings import Settings
 from tech_planner.application.use_cases.approve_and_create import ApproveAndCreate
 from tech_planner.application.use_cases.edit_system_prompt import EditSystemPrompt
@@ -44,6 +45,9 @@ class Application:
     """Every use case, wired and ready."""
 
     settings: Settings
+    #: The agent port itself. Exposed only so a health check can preflight the
+    #: runtime without opening a session it would then have to throw away.
+    agent: AgentGateway
     start_session: StartPlanningSession
     propose: ProposePlan
     approve: ApproveAndCreate
@@ -65,6 +69,7 @@ def build(config_path: Path = DEFAULT_PATH) -> Application:
 
     return Application(
         settings=settings,
+        agent=gateway,
         start_session=StartPlanningSession(agent=gateway, sessions=sessions),
         propose=ProposePlan(
             agent=gateway,

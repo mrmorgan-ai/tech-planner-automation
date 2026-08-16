@@ -13,6 +13,10 @@ RUN     := $(UV) run
 PLANNER := $(RUN) tech-planner
 CONFIG  ?= config/settings.py
 
+# Where `make api` listens. Localhost only — the API has no authentication and
+# drives your Claude Code subscription.
+PORT    ?= 8787
+
 # The requirement used by `make plan`. Override it:
 #   make plan REQ="Add rate limiting to the public API"
 # Planning knobs, all optional: CADENCE=annual|quarterly|sprint, SPRINT="Sprint 13",
@@ -27,7 +31,7 @@ REQ ?= Add a health check endpoint at /healthz that reports database connectivit
 
 .DEFAULT_GOAL := help
 .PHONY: help install config check rules policy prompt doctor \
-        plan plan-yes capacity sessions session clean reset
+        plan plan-yes api api-dev capacity sessions session clean reset
 
 ## ---------------------------------------------------------------------------
 ## Getting started
@@ -81,6 +85,12 @@ plan: ## Plan REQ and stop at the approval prompt
 
 plan-yes: ## Plan REQ and create the items unprompted — this writes to the backend
 	@$(PLANNER) --config $(CONFIG) plan $(PLAN_ARGS) "$(REQ)" --yes
+
+api: ## Serve the HTTP API on 127.0.0.1 for the web app
+	@$(RUN) tech-planner-api --config $(CONFIG) --port $(PORT)
+
+api-dev: ## Same, restarting on code changes. A reload kills any live run.
+	@$(RUN) tech-planner-api --config $(CONFIG) --port $(PORT) --reload
 
 capacity: ## Show or set per-sprint capacity: make capacity SPRINT="Sprint 13" CAPACITY=48
 	@$(PLANNER) --config $(CONFIG) capacity $(if $(SPRINT),"$(SPRINT)") $(CAPACITY)
