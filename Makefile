@@ -15,11 +15,19 @@ CONFIG  ?= config/settings.py
 
 # The requirement used by `make plan`. Override it:
 #   make plan REQ="Add rate limiting to the public API"
+# Planning knobs, all optional: CADENCE=annual|quarterly|sprint, SPRINT="Sprint 13",
+# BUFFER=1.25, CAPACITY=48.
+CADENCE  ?=
+SPRINT   ?=
+BUFFER   ?=
+CAPACITY ?=
+PLAN_ARGS = $(if $(CADENCE),--cadence $(CADENCE)) $(if $(SPRINT),--sprint "$(SPRINT)") $(if $(BUFFER),--buffer $(BUFFER)) $(if $(CAPACITY),--capacity $(CAPACITY))
+
 REQ ?= Add a health check endpoint at /healthz that reports database connectivity and returns 200 or 503. Keep it to one Epic, one Feature, one User Story.
 
 .DEFAULT_GOAL := help
 .PHONY: help install config check rules policy prompt doctor \
-        plan plan-yes sessions session clean reset
+        plan plan-yes capacity sessions session clean reset
 
 ## ---------------------------------------------------------------------------
 ## Getting started
@@ -69,10 +77,13 @@ doctor: ## Start the real runtime and report what it can reach (slow)
 ## ---------------------------------------------------------------------------
 
 plan: ## Plan REQ and stop at the approval prompt
-	@$(PLANNER) --config $(CONFIG) plan "$(REQ)"
+	@$(PLANNER) --config $(CONFIG) plan $(PLAN_ARGS) "$(REQ)"
 
 plan-yes: ## Plan REQ and create the items unprompted — this writes to the backend
-	@$(PLANNER) --config $(CONFIG) plan "$(REQ)" --yes
+	@$(PLANNER) --config $(CONFIG) plan $(PLAN_ARGS) "$(REQ)" --yes
+
+capacity: ## Show or set per-sprint capacity: make capacity SPRINT="Sprint 13" CAPACITY=48
+	@$(PLANNER) --config $(CONFIG) capacity $(if $(SPRINT),"$(SPRINT)") $(CAPACITY)
 
 sessions: ## List past planning sessions
 	@$(PLANNER) --config $(CONFIG) sessions

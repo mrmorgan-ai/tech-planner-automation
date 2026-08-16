@@ -22,7 +22,9 @@ from typing import Any
 from tech_planner.adapters.driven.claude_code.dto import dump_proposal, parse_proposal
 from tech_planner.application.ports.session_repository import SessionNotFound
 from tech_planner.domain.model.approval import ApprovalDecision, CreatedItem
+from tech_planner.domain.model.estimate import DEFAULT_BUFFER_FACTOR
 from tech_planner.domain.model.planning_session import PlanningSession, SessionStatus
+from tech_planner.domain.model.scope import DEFAULT_SCOPE, PlanningScope
 from tech_planner.domain.rules.violations import (
     RuleId,
     RuleViolation,
@@ -79,6 +81,11 @@ def _dump(session: PlanningSession) -> dict[str, Any]:
         "requirement": session.requirement,
         "prompt_revision": session.prompt_revision,
         "status": str(session.status),
+        "scope": str(session.scope),
+        "buffer_factor": str(session.buffer_factor),
+        "capacity_hours": (
+            str(session.capacity_hours) if session.capacity_hours is not None else None
+        ),
         "proposal": dump_proposal(session.proposal) if session.proposal else None,
         "report": _dump_report(session.report),
         "decision": _dump_decision(session.decision),
@@ -90,11 +97,21 @@ def _dump(session: PlanningSession) -> dict[str, Any]:
 
 
 def _load(data: Any) -> PlanningSession:
-    proposal = parse_proposal(data["proposal"]).proposal if data.get("proposal") else None
+    # Re-buffered with the factor this plan was proposed under, never today's.
+    buffer_factor = Decimal(str(data.get("buffer_factor", DEFAULT_BUFFER_FACTOR)))
+    proposal = (
+        parse_proposal(data["proposal"], buffer_factor=buffer_factor).proposal
+        if data.get("proposal")
+        else None
+    )
+    capacity = data.get("capacity_hours")
     return PlanningSession(
         id=data["id"],
         requirement=data.get("requirement", ""),
         prompt_revision=data.get("prompt_revision"),
+        scope=PlanningScope.parse(data["scope"]) if data.get("scope") else DEFAULT_SCOPE,
+        buffer_factor=buffer_factor,
+        capacity_hours=Decimal(str(capacity)) if capacity is not None else None,
         status=SessionStatus(data.get("status", SessionStatus.DRAFTING)),
         proposal=proposal,
         report=_load_report(data.get("report")),

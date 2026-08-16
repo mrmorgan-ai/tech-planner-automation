@@ -30,6 +30,14 @@ class RuleId(StrEnum):
     STORY_MIXES_POINTS_AND_HOURS = "story_mixes_points_and_hours"
     BUFFER_ARITHMETIC_CORRECTED = "buffer_arithmetic_corrected"
     PLAN_HAS_NO_USER_STORIES = "plan_has_no_user_stories"
+    #: An item at a level the current planning cadence does not cover — a Task
+    #: in an annual plan, say.
+    ITEM_OUTSIDE_PLANNING_SCOPE = "item_outside_planning_scope"
+    #: Nothing was produced at the level this cadence exists to produce.
+    PLAN_EMPTY_AT_BOTTOM_LEVEL = "plan_empty_at_bottom_level"
+    #: The sizing level carries no estimate. In cadences above sprint level
+    #: that means story points, since there are no hours to give.
+    MISSING_STORY_POINTS = "missing_story_points"
 
 
 @dataclass(frozen=True, slots=True)

@@ -3,18 +3,33 @@
 This is the domain service the whole architecture exists to make possible: with
 the plan arriving as data rather than prose, "every task is at most two days"
 stops being a request in a prompt and becomes something we check.
+
+**Rules are scoped, not universal.** The x1.30 buffer, the two-day ceiling, the
+Definition of Done and sprint capacity are all statements about hours, and an
+annual plan has none — it stops at Features. Applying them anyway would make
+every coarse plan unapprovable for failing to contain things it was never asked
+to contain. So each rule states the level it belongs to, and simply does not run
+outside it. What replaces them above sprint level is thinner on purpose: at that
+altitude the honest checks are that the right levels are present, that they are
+sized in points, and that they say what "done" means.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
 from tech_planner.domain.model.effort import HOURS_PER_DAY, MAX_DAYS
 from tech_planner.domain.model.estimate import format_hours
 from tech_planner.domain.model.plan_proposal import PlanProposal
+from tech_planner.domain.model.scope import DEFAULT_SCOPE, PlanningScope
 from tech_planner.domain.model.sprint import SprintCapacity
-from tech_planner.domain.model.work_item import TaskKind, UserStory
+from tech_planner.domain.model.work_item import (
+    AnyWorkItem,
+    Task,
+    UserStory,
+    WorkItemType,
+)
 from tech_planner.domain.rules.definition_of_done import DefinitionOfDone
 from tech_planner.domain.rules.violations import (
     RuleId,
@@ -28,36 +43,69 @@ from tech_planner.domain.rules.violations import (
 class PlanningPolicy:
     """The team-specific knobs the spec leaves open."""
 
+    #: Which levels this planning session covers. Decides which rules run.
+    scope: PlanningScope = field(default=DEFAULT_SCOPE)
     capacity: SprintCapacity = SprintCapacity()
     definition_of_done: DefinitionOfDone = DefinitionOfDone()
-    #: Require every story to carry acceptance criteria. The spec lists them as
-    #: mandatory story content, so this defaults on.
+    #: Require every sized item to carry acceptance criteria. The spec lists
+    #: them as mandatory content, so this defaults on.
     require_acceptance_criteria: bool = True
 
 
 def validate(proposal: PlanProposal, policy: PlanningPolicy | None = None) -> ValidationReport:
     """Check a proposal and return everything worth telling the user."""
     policy = policy or PlanningPolicy()
+    scope = policy.scope
     violations: list[RuleViolation] = []
 
-    stories = proposal.user_stories
-    if not stories:
-        violations.append(
+    violations.extend(_check_scope(proposal, scope))
+
+    if scope.plans_tasks:
+        violations.extend(_check_task_sizes(proposal))
+        for story in proposal.user_stories:
+            violations.extend(_check_story_breakdown(proposal, story, policy))
+    else:
+        violations.extend(_check_points(proposal, policy))
+
+    violations.extend(_check_acceptance_criteria(proposal, policy))
+    return ValidationReport(violations=tuple(violations))
+
+
+# -- scope ---------------------------------------------------------------
+
+
+def _check_scope(proposal: PlanProposal, scope: PlanningScope) -> list[RuleViolation]:
+    found: list[RuleViolation] = []
+
+    for item in proposal.items:
+        if not scope.includes(item.type):
+            found.append(
+                RuleViolation(
+                    rule=RuleId.ITEM_OUTSIDE_PLANNING_SCOPE,
+                    severity=Severity.ERROR,
+                    item_ref=item.ref,
+                    message=(
+                        f"{item.type} is outside this plan's scope ({scope}); "
+                        "that level belongs to a different planning cadence"
+                    ),
+                )
+            )
+
+    if not proposal.of_type(scope.bottom):
+        found.append(
             RuleViolation(
-                rule=RuleId.PLAN_HAS_NO_USER_STORIES,
+                rule=RuleId.PLAN_EMPTY_AT_BOTTOM_LEVEL,
                 severity=Severity.ERROR,
                 message=(
-                    "the plan contains no user stories; the tool's purpose is to "
-                    "produce user stories broken down as tasks"
+                    f"the plan contains no {scope.bottom} items; producing them "
+                    f"is the point of a {scope} plan"
                 ),
             )
         )
+    return found
 
-    violations.extend(_check_task_sizes(proposal))
-    for story in stories:
-        violations.extend(_check_story(proposal, story, policy))
 
-    return ValidationReport(violations=tuple(violations))
+# -- hours: sprint-level cadences only ------------------------------------
 
 
 def _check_task_sizes(proposal: PlanProposal) -> list[RuleViolation]:
@@ -92,7 +140,7 @@ def _check_task_sizes(proposal: PlanProposal) -> list[RuleViolation]:
     return found
 
 
-def _check_story(
+def _check_story_breakdown(
     proposal: PlanProposal, story: UserStory, policy: PlanningPolicy
 ) -> list[RuleViolation]:
     found: list[RuleViolation] = []
@@ -126,8 +174,7 @@ def _check_story(
         )
 
     dod = policy.definition_of_done.applies_to_tags(story.tags)
-    present = frozenset(t.kind for t in tasks)
-    missing = dod.missing_from(present)
+    missing = dod.missing_from(frozenset(t.kind for t in tasks))
     if missing:
         found.append(
             RuleViolation(
@@ -138,16 +185,6 @@ def _check_story(
                     "story is missing Definition-of-Done tasks: "
                     + ", ".join(sorted(str(k) for k in missing))
                 ),
-            )
-        )
-
-    if policy.require_acceptance_criteria and not story.acceptance_criteria:
-        found.append(
-            RuleViolation(
-                rule=RuleId.STORY_MISSING_ACCEPTANCE_CRITERIA,
-                severity=Severity.ERROR,
-                item_ref=story.ref,
-                message="story has no acceptance criteria",
             )
         )
 
@@ -162,8 +199,64 @@ def _check_story(
                 message="story carries both story points and an hour estimate",
             )
         )
-
     return found
+
+
+# -- points: cadences above sprint level ----------------------------------
+
+
+def _check_points(proposal: PlanProposal, policy: PlanningPolicy) -> list[RuleViolation]:
+    """Above sprint level there are no hours, so sizing is in story points.
+
+    A warning rather than an error: an unsized Feature in an annual plan is
+    worth flagging, but it is not the kind of mistake that should stop a year's
+    planning from being recorded.
+    """
+    return [
+        RuleViolation(
+            rule=RuleId.MISSING_STORY_POINTS,
+            severity=Severity.WARNING,
+            item_ref=item.ref,
+            message=(
+                f"{item.type} has no story points; at this planning level "
+                "points are the only sizing available"
+            ),
+        )
+        for item in proposal.of_type(policy.scope.sizing_level)
+        if getattr(item, "story_points", None) is None
+    ]
+
+
+# -- applies at every level ------------------------------------------------
+
+
+def _check_acceptance_criteria(
+    proposal: PlanProposal, policy: PlanningPolicy
+) -> list[RuleViolation]:
+    if not policy.require_acceptance_criteria:
+        return []
+    return [
+        RuleViolation(
+            rule=RuleId.STORY_MISSING_ACCEPTANCE_CRITERIA,
+            severity=Severity.ERROR,
+            item_ref=item.ref,
+            message=f"{item.type} has no acceptance criteria",
+        )
+        for item in proposal.items
+        if _needs_criteria(item, policy.scope)
+        and not getattr(item, "acceptance_criteria", ())
+    ]
+
+
+def _needs_criteria(item: AnyWorkItem, scope: PlanningScope) -> bool:
+    """Only the deepest describable level in scope must state its criteria.
+
+    In a sprint plan that is the User Story, not the Task beneath it. In a
+    quarterly plan it is the User Story again, not the Feature above it: the
+    Feature is context for the stories, and demanding criteria on both produces
+    duplication rather than clarity.
+    """
+    return item.type is scope.describable_level
 
 
 def _has_own_hours(story: UserStory) -> bool:

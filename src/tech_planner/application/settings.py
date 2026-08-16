@@ -17,6 +17,8 @@ from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
 
+from tech_planner.domain.model.estimate import DEFAULT_BUFFER_FACTOR
+from tech_planner.domain.model.scope import PlanningCadence, PlanningScope
 from tech_planner.domain.model.sprint import DEFAULT_STORY_CAPACITY_HOURS, SprintCapacity
 from tech_planner.domain.rules.definition_of_done import DefinitionOfDone
 from tech_planner.domain.rules.planning_rules import PlanningPolicy
@@ -81,13 +83,37 @@ class Settings:
     agent: AgentSettings = AgentSettings()
     #: Buffered hours one User Story may carry and still fit a sprint. Only the
     #: team knows this number, so it is configuration rather than a constant.
+    #: This is the *fallback*: a value recorded for a specific sprint wins.
     story_capacity_hours: Decimal = DEFAULT_STORY_CAPACITY_HOURS
+    #: Contingency multiplier on every hour estimate. The spec fixes it at 1.30;
+    #: teams adjust it as they learn what their contingency really costs.
+    buffer_factor: Decimal = DEFAULT_BUFFER_FACTOR
+    #: Which planning event runs by default. Annual plans Epics into Features,
+    #: quarterly plans Features into User Stories, sprint plans stories into
+    #: tasks — and each cadence decides which rules even apply.
+    cadence: PlanningCadence = PlanningCadence.SPRINT
     require_acceptance_criteria: bool = True
 
-    def planning_policy(self) -> PlanningPolicy:
-        """The domain policy these settings describe."""
+    def planning_policy(
+        self,
+        *,
+        scope: PlanningScope | None = None,
+        capacity_hours: Decimal | None = None,
+    ) -> PlanningPolicy:
+        """The domain policy these settings describe.
+
+        Both overrides exist because they change per run rather than per team:
+        the cadence is whichever planning event you are in, and capacity is
+        whatever this particular sprint has. Neither belongs in a config file
+        you would have to edit four times a month.
+        """
         return PlanningPolicy(
-            capacity=SprintCapacity(story_capacity_hours=self.story_capacity_hours),
+            scope=scope or PlanningScope.for_cadence(self.cadence),
+            capacity=SprintCapacity(
+                story_capacity_hours=capacity_hours
+                if capacity_hours is not None
+                else self.story_capacity_hours
+            ),
             definition_of_done=DefinitionOfDone(),
             require_acceptance_criteria=self.require_acceptance_criteria,
         )

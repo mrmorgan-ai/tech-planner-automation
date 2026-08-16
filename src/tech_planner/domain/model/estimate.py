@@ -23,8 +23,15 @@ from typing import Final
 
 from tech_planner.domain.errors import InvalidEstimate
 
-#: Contingency multiplier applied to every base estimate.
-BUFFER_FACTOR: Final[Decimal] = Decimal("1.30")
+#: Contingency multiplier applied to every base estimate, unless configured
+#: otherwise. The spec fixes it at 1.30; teams adjust it as they learn what
+#: their own contingency actually costs, so it is a default rather than a law.
+DEFAULT_BUFFER_FACTOR: Final[Decimal] = Decimal("1.30")
+
+#: A factor below 1 would shrink estimates, which is not contingency; one much
+#: above 2 is not a buffer but a different estimate.
+MIN_BUFFER_FACTOR: Final[Decimal] = Decimal("1")
+MAX_BUFFER_FACTOR: Final[Decimal] = Decimal("3")
 
 #: Estimates are rounded to a multiple of this many hours.
 QUANTUM_HOURS: Final[Decimal] = Decimal("0.5")
@@ -48,6 +55,10 @@ class Estimate:
     """
 
     base_hours: Decimal
+    #: Stored alongside the base, not read from a global. An estimate has to
+    #: stay reproducible: a plan approved at 1.30 must still write 1.30 to the
+    #: board after someone changes the team default to 1.20 next week.
+    buffer_factor: Decimal = DEFAULT_BUFFER_FACTOR
 
     def __post_init__(self) -> None:
         if not isinstance(self.base_hours, Decimal):
@@ -61,9 +72,18 @@ class Estimate:
                 f"base estimate of {self.base_hours}h exceeds the sanity ceiling "
                 f"of {MAX_REASONABLE_HOURS}h"
             )
+        if not MIN_BUFFER_FACTOR <= self.buffer_factor <= MAX_BUFFER_FACTOR:
+            raise InvalidEstimate(
+                f"buffer factor {self.buffer_factor} is outside the sensible range "
+                f"{MIN_BUFFER_FACTOR}-{MAX_BUFFER_FACTOR}"
+            )
 
     @classmethod
-    def of(cls, base_hours: Decimal | int | str) -> Estimate:
+    def of(
+        cls,
+        base_hours: Decimal | int | str,
+        buffer_factor: Decimal = DEFAULT_BUFFER_FACTOR,
+    ) -> Estimate:
         """Build from anything losslessly convertible to ``Decimal``.
 
         ``float`` is refused rather than silently coerced: accepting it would
@@ -73,12 +93,12 @@ class Estimate:
             raise InvalidEstimate(
                 "refusing to build an Estimate from float; pass Decimal, int, or str"
             )
-        return cls(Decimal(base_hours))
+        return cls(Decimal(base_hours), buffer_factor)
 
     @property
     def final_hours(self) -> Decimal:
-        """The buffered estimate: base x 1.30, quantised."""
-        return quantize_hours(self.base_hours * BUFFER_FACTOR)
+        """The buffered estimate: base x the factor, quantised."""
+        return quantize_hours(self.base_hours * self.buffer_factor)
 
     @property
     def buffer_hours(self) -> Decimal:

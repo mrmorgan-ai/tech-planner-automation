@@ -18,6 +18,7 @@ Two rules make that containment hold:
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
+from decimal import Decimal
 from typing import Any
 
 from tech_planner.adapters.driven.claude_code.dto import (
@@ -25,6 +26,7 @@ from tech_planner.adapters.driven.claude_code.dto import (
     parse_creation_report,
     parse_proposal,
 )
+from tech_planner.domain.model.estimate import DEFAULT_BUFFER_FACTOR
 from tech_planner.application.events import (
     AgentRetrying,
     AssistantDelta,
@@ -53,12 +55,14 @@ class StreamMapper:
         *,
         session_id: str,
         required_servers: tuple[str, ...] = (),
+        buffer_factor: Decimal = DEFAULT_BUFFER_FACTOR,
     ) -> None:
         self._kind = kind
         self._session_id = session_id
         #: MCP servers this pass genuinely depends on — in practice, the
         #: work-tracking backend's. Only these are fatal when unhealthy.
         self._required_servers = required_servers
+        self._buffer_factor = buffer_factor
         self._saw_terminal = False
 
     @property
@@ -244,7 +248,7 @@ class StreamMapper:
 
     def _terminal_from(self, payload: Mapping[str, Any]) -> Iterator[Event]:
         if self._kind is PassKind.PROPOSE:
-            parsed = parse_proposal(payload)
+            parsed = parse_proposal(payload, buffer_factor=self._buffer_factor)
             yield ProposalReady(proposal=parsed.proposal, notes=parsed.notes)
             return
 

@@ -31,6 +31,7 @@ from tech_planner.application.ports.session_repository import SessionRepository
 from tech_planner.application.ports.settings_provider import SettingsProvider
 from tech_planner.domain.model.planning_session import SessionStatus
 from tech_planner.domain.rules.planning_rules import validate
+from tech_planner.domain.rules.violations import RuleViolation, ValidationReport
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,13 +60,17 @@ class ProposePlan:
             # A second requirement in the same session continues the
             # conversation, so the agent can revise rather than start over.
             resume=session.status is not SessionStatus.DRAFTING,
+            scope=session.scope,
+            buffer_factor=session.buffer_factor,
         )
 
         proposal = None
+        notes: tuple[RuleViolation, ...] = ()
         async for event in self.agent.run(request):
             yield event
             if isinstance(event, ProposalReady):
                 proposal = event.proposal
+                notes = event.notes
             elif isinstance(event, RunFailed):
                 session.fail(event.reason)
                 self.sessions.save(session)
@@ -80,9 +85,17 @@ class ProposePlan:
             yield RunFailed(reason=reason, retryable=True)
             return
 
-        report = validate(proposal, settings.planning_policy())
+        report = validate(
+            proposal,
+            settings.planning_policy(
+                scope=session.scope, capacity_hours=session.capacity_hours
+            ),
+        )
         session.record_proposal(proposal, report)
         self.sessions.save(session)
 
+        # Parse-time corrections belong in the same report the user reviews,
+        # not in a separate channel they might not read.
+        report = ValidationReport(violations=notes + report.violations)
         yield PlanValidated(report=report, approvable=report.is_approvable)
         yield AwaitingApproval(session_id=session.id, item_count=len(proposal.items))

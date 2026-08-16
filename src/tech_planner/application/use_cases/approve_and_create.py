@@ -64,6 +64,8 @@ class ApproveAndCreate:
             # area paths during the propose pass, and repeating that work would
             # invite it to resolve them differently the second time.
             resume=True,
+            scope=session.scope,
+            buffer_factor=session.buffer_factor,
         )
 
         created = None

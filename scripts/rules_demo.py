@@ -13,6 +13,7 @@ from __future__ import annotations
 from tech_planner.domain.model.effort import TaskEffort
 from tech_planner.domain.model.plan_proposal import PlanProposal
 from tech_planner.domain.model.work_item import Task, TaskKind, UserStory
+from tech_planner.domain.model.scope import PlanningCadence, PlanningScope
 from tech_planner.domain.rules.planning_rules import validate
 
 # One story, two tasks. The first is well over the two-day ceiling; together
@@ -41,6 +42,15 @@ BAD_PLAN = PlanProposal(
 
 
 def main() -> int:
+    # Rules are scoped: a sprint plan is judged on hours, an annual plan on
+    # points. Showing both is the point — the same engine, different questions.
+    for cadence in PlanningCadence:
+        scope = PlanningScope.for_cadence(cadence)
+        print(
+            f"scope        {cadence:<10} {scope}  "
+            f"{'hours + buffer' if scope.plans_tasks else 'story points'}"
+        )
+
     report = validate(BAD_PLAN)
     print(
         f"rules        {len(report.violations)} findings on a knowingly bad plan, "

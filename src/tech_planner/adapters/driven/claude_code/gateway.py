@@ -51,6 +51,7 @@ class ClaudeCodeGateway:
             request.kind,
             session_id=request.session_id,
             required_servers=_required_servers(settings),
+            buffer_factor=request.buffer_factor,
         )
 
         with _system_prompt_file(request.system_prompt) as prompt_path:

@@ -19,6 +19,7 @@ from tech_planner.application.settings import (
     Settings,
     ToolProfile,
 )
+from tech_planner.domain.model.scope import PlanningCadence
 
 settings = Settings(
     backend=BackendSettings(
@@ -85,9 +86,25 @@ settings = Settings(
         # repository so no project-scoped configuration or hooks are found.
         workspace=Path("workspace"),
     ),
+    # Which planning event runs when you do not name one with --cadence:
+    #   ANNUAL     Epic      -> Feature     (sized in story points)
+    #   QUARTERLY  Feature   -> UserStory   (sized in story points)
+    #   SPRINT     UserStory -> Task        (sized in hours, buffered)
+    # The cadence decides which rules even apply: the two-day task ceiling and
+    # sprint capacity are statements about hours, and coarser plans have none.
+    cadence=PlanningCadence.SPRINT,
+    # Contingency multiplier on every hour estimate. The spec fixes it at 1.30;
+    # change it as you learn what your contingency actually costs. Override for
+    # one run with --buffer. Whatever is in force is recorded on the session, so
+    # a plan approved at 1.30 still writes 1.30 after you change this.
+    buffer_factor=Decimal("1.30"),
     # Buffered hours one User Story may carry and still fit a two-week sprint.
     # Only your team knows this: it is one person's availability minus ceremony,
     # support and slack. The default is 64 (ten days at 80%).
+    #
+    # This is the fallback. Capacity really changes every sprint, so record it
+    # per sprint instead and leave this as the floor:
+    #     tech-planner capacity "Sprint 13" 48
     story_capacity_hours=Decimal("64"),
     require_acceptance_criteria=True,
 )

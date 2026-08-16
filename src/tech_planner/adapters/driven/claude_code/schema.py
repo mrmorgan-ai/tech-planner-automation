@@ -23,9 +23,9 @@ from __future__ import annotations
 
 from typing import Any
 
-DRAFT_07 = "http://json-schema.org/draft-07/schema#"
+from tech_planner.domain.model.scope import DEFAULT_SCOPE, PlanningScope
 
-_ITEM_TYPES = ["Epic", "Feature", "UserStory", "Task"]
+DRAFT_07 = "http://json-schema.org/draft-07/schema#"
 
 _TASK_KINDS = [
     "implementation",
@@ -47,8 +47,13 @@ def _nullable(*types: str) -> list[str]:
     return [*types, "null"]
 
 
-def plan_proposal_schema() -> dict[str, Any]:
-    """What a PROPOSE pass must return."""
+def plan_proposal_schema(scope: PlanningScope = DEFAULT_SCOPE) -> dict[str, Any]:
+    """What a PROPOSE pass must return, for the cadence being planned.
+
+    The `item_type` enum is narrowed to the levels in scope. Constraining the
+    schema is far more effective than asking in prose: an annual plan simply
+    cannot come back with Tasks in it.
+    """
     return {
         "$schema": DRAFT_07,
         "type": "object",
@@ -66,7 +71,7 @@ def plan_proposal_schema() -> dict[str, Any]:
                     "Every work item, flat. Express the hierarchy through "
                     "parent_ref, not by nesting."
                 ),
-                "items": _work_item_schema(),
+                "items": _work_item_schema(scope),
             },
             "split_rationale": {
                 "type": _nullable("string"),
@@ -79,14 +84,15 @@ def plan_proposal_schema() -> dict[str, Any]:
                 **_STRING_LIST,
                 "description": (
                     "Blockers, external dependencies, missing information, or "
-                    "uncertainty that a 30% buffer must not be used to hide."
+                    "uncertainty that the estimate buffer must not be used to hide."
                 ),
             },
         },
     }
 
 
-def _work_item_schema() -> dict[str, Any]:
+def _work_item_schema(scope: PlanningScope) -> dict[str, Any]:
+    sizing = scope.sizing_level
     return {
         "type": "object",
         "additionalProperties": False,
@@ -99,7 +105,7 @@ def _work_item_schema() -> dict[str, Any]:
                     "Not a backend id — nothing exists yet."
                 ),
             },
-            "item_type": {"enum": _ITEM_TYPES},
+            "item_type": {"enum": [str(level) for level in scope.levels]},
             "title": {"type": "string"},
             "description": {"type": "string"},
             "parent_ref": {
@@ -111,13 +117,16 @@ def _work_item_schema() -> dict[str, Any]:
             },
             "acceptance_criteria": {
                 **_STRING_LIST,
-                "description": "Epic, Feature and User Story only. One criterion per entry.",
+                "description": (
+                    "Not for Tasks. One short, testable statement per entry."
+                ),
             },
             "story_points": {
                 "type": _nullable("integer"),
                 "description": (
-                    "User Story only. Never set this on an item that also "
-                    "carries an hour estimate."
+                    f"Size the {sizing} items in points."
+                    if sizing != "Task"
+                    else "Not used when Tasks are being planned; size Tasks in hours."
                 ),
             },
             "base_estimate_hours": {
@@ -127,9 +136,10 @@ def _work_item_schema() -> dict[str, Any]:
             "final_estimate_hours": {
                 "type": _nullable("number"),
                 "description": (
-                    "Task only. base_estimate_hours x 1.30. This is recomputed "
-                    "and the computed figure is authoritative; it is requested "
-                    "so that a disagreement can be reported."
+                    "Task only. base_estimate_hours multiplied by the buffer factor "
+                    "stated in the request. This is recomputed and the computed "
+                    "figure is authoritative; it is asked for so that a "
+                    "disagreement can be reported."
                 ),
             },
             "task_kind": {

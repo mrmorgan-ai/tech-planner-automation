@@ -25,7 +25,9 @@ from tech_planner.application.events import (
     ToolFinished,
     ToolStarted,
 )
-from tech_planner.domain.model.estimate import format_hours
+from decimal import Decimal
+
+from tech_planner.domain.model.estimate import DEFAULT_BUFFER_FACTOR, format_hours
 from tech_planner.domain.model.plan_proposal import PlanProposal
 from tech_planner.domain.model.work_item import Task, UserStory
 from tech_planner.domain.rules.violations import RuleViolation, Severity
@@ -69,15 +71,26 @@ def render_event(event: Event) -> None:
             pass
 
 
-def render_plan(proposal: PlanProposal) -> None:
+def render_plan(proposal: PlanProposal, buffer_factor: Decimal | None = None) -> None:
     _line("\nProposed plan")
     _line("─" * 60)
     _render_branch(proposal)
     _line("─" * 60)
+    if not proposal.tasks:
+        # Above sprint level there are no hours to total, so summarising them
+        # would be inventing a number.
+        _line(f"{len(proposal.items)} items · sized in story points")
+        return
+
+    factor = buffer_factor if buffer_factor is not None else DEFAULT_BUFFER_FACTOR
+    # The total is the sum of the per-task rounded figures, not the base total
+    # re-multiplied. Each task's hours go on its own work item and have to be a
+    # usable number there, so the rounding happens per task and the total is
+    # whatever those add up to — which is what will actually be on the board.
     _line(
         f"{len(proposal.tasks)} tasks · "
         f"{format_hours(proposal.total_base_hours)}h base · "
-        f"{format_hours(proposal.total_final_hours)}h with the 30% buffer"
+        f"{format_hours(proposal.total_final_hours)}h buffered (x{format_hours(factor)})"
     )
 
 

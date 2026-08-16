@@ -16,10 +16,13 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from tech_planner.application.events import Event, PassKind
+from tech_planner.domain.model.estimate import DEFAULT_BUFFER_FACTOR
+from tech_planner.domain.model.scope import DEFAULT_SCOPE, PlanningScope
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +50,13 @@ class AgentRequest:
     #: Continue an existing runtime session rather than starting one. Always
     #: true for CREATE, so the agent still has the proposal it just made.
     resume: bool = False
+    #: Which levels this run plans. Decides the output schema the agent must
+    #: satisfy and what it is told to produce.
+    scope: PlanningScope = DEFAULT_SCOPE
+    #: The contingency multiplier in force for this run. Travels with the
+    #: request so a plan is always buffered with the figure it was proposed
+    #: under, even if the team default changes before it is approved.
+    buffer_factor: Decimal = DEFAULT_BUFFER_FACTOR
 
 
 @runtime_checkable

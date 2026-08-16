@@ -17,6 +17,9 @@ from tech_planner.adapters.driven.config.py_settings import (
 )
 from tech_planner.adapters.driven.filesystem.context_repository import FileContextRepository
 from tech_planner.adapters.driven.filesystem.prompt_repository import FilePromptRepository
+from tech_planner.adapters.driven.persistence.capacity_repository import (
+    JsonCapacityRepository,
+)
 from tech_planner.adapters.driven.persistence.session_repository import JsonSessionRepository
 from tech_planner.application.settings import Settings
 from tech_planner.application.use_cases.approve_and_create import ApproveAndCreate
@@ -27,7 +30,13 @@ from tech_planner.application.use_cases.start_planning_session import StartPlann
 
 
 #: Re-exported so driving adapters need not reach into a driven adapter for it.
-__all__ = ["Application", "DEFAULT_PATH", "build", "sessions_repository"]
+__all__ = [
+    "Application",
+    "DEFAULT_PATH",
+    "build",
+    "capacity_repository",
+    "sessions_repository",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +49,7 @@ class Application:
     approve: ApproveAndCreate
     prompt: EditSystemPrompt
     context: ManageContextFiles
+    capacity: JsonCapacityRepository
 
 
 def build(config_path: Path = DEFAULT_PATH) -> Application:
@@ -66,9 +76,16 @@ def build(config_path: Path = DEFAULT_PATH) -> Application:
         approve=ApproveAndCreate(agent=gateway, sessions=sessions, prompts=prompts),
         prompt=EditSystemPrompt(prompts=prompts),
         context=ManageContextFiles(context=context),
+        capacity=JsonCapacityRepository(),
     )
 
 
 def sessions_repository() -> JsonSessionRepository:
     """For read-only commands that need no agent runtime and no configuration."""
     return JsonSessionRepository()
+
+
+def capacity_repository() -> JsonCapacityRepository:
+    """Capacity is edited far more often than it is planned with, so the
+    commands that manage it deliberately need neither config nor a runtime."""
+    return JsonCapacityRepository()

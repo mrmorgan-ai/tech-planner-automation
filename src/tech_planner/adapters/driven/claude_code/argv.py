@@ -104,7 +104,7 @@ def build_launch(
     # Structured output. Verified compatible with stream-json: the payload
     # arrives as `structured_output` on the result message. Note the flag takes
     # inline JSON, not a path — unlike --system-prompt-file next to it.
-    argv += ["--json-schema", json.dumps(_schema_for(request.kind), separators=(",", ":"))]
+    argv += ["--json-schema", json.dumps(_schema_for(request), separators=(",", ":"))]
 
     # The tool's own instructions, replacing the runtime's default entirely.
     argv += ["--system-prompt-file", str(system_prompt_path)]
@@ -156,16 +156,51 @@ def child_env(base: Mapping[str, str] | None = None) -> dict[str, str]:
     """The environment the runtime is launched with.
 
     Inherits the user's environment — that is how their MCP servers find their
-    own credentials — minus the variables in :data:`STRIPPED_ENV_VARS`.
+    own credentials — minus the variables in :data:`STRIPPED_ENV_VARS`, plus
+    anything in a local `.env`.
     """
     env = dict(os.environ if base is None else base)
+    # A real shell export wins over the file: if both are set, the one you just
+    # typed is the one you meant.
+    for name, value in load_dotenv().items():
+        env.setdefault(name, value)
     for name in STRIPPED_ENV_VARS:
         env.pop(name, None)
     return env
 
 
-def _schema_for(kind: PassKind) -> dict[str, Any]:
-    return plan_proposal_schema() if kind is PassKind.PROPOSE else creation_report_schema()
+def load_dotenv(path: Path = Path(".env")) -> dict[str, str]:
+    """Read `KEY=value` lines from a local `.env`, if there is one.
+
+    Backend credentials have to reach the MCP server somehow, and a gitignored
+    `.env` beside the config is where people put them. Supporting it here means
+    a PAT never has to be pasted into a tracked file, and never has to be
+    re-exported in every new shell.
+
+    Hand-rolled rather than adding a dependency: the format this needs is one
+    `KEY=value` per line, `#` for comments, optional surrounding quotes. A line
+    without an `=` is skipped — a bare secret in a file is not a variable, and
+    guessing which variable it was meant to be would be worse than ignoring it.
+    """
+    if not path.is_file():
+        return {}
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, _, value = line.partition("=")
+        name = name.strip().removeprefix("export ").strip()
+        value = value.strip().strip("'\"")
+        if name:
+            values[name] = value
+    return values
+
+
+def _schema_for(request: AgentRequest) -> dict[str, Any]:
+    if request.kind is PassKind.PROPOSE:
+        return plan_proposal_schema(request.scope)
+    return creation_report_schema()
 
 
 def _turn(request: AgentRequest) -> str:
@@ -175,10 +210,40 @@ def _turn(request: AgentRequest) -> str:
     pushing a long standards document through the context window on turn one
     costs more than letting it read the parts it needs.
     """
-    if not request.context_files:
-        return request.prompt
-    listing = "\n".join(f"- {path}" for path in request.context_files)
-    return (
-        f"{request.prompt}\n\n"
-        f"Context documents available to read:\n{listing}"
+    parts = [request.prompt, "", _brief(request)]
+    if request.context_files:
+        listing = "\n".join(f"- {path}" for path in request.context_files)
+        parts += ["", f"Context documents available to read:\n{listing}"]
+    return "\n".join(parts)
+
+
+def _brief(request: AgentRequest) -> str:
+    """The run's planning parameters, stated in the turn rather than the prompt.
+
+    These change per run — the cadence you are in, the contingency factor in
+    force — while the system prompt is the user's own standing instructions.
+    Putting them here keeps the editable prompt free of run-specific noise.
+    """
+    if request.kind is not PassKind.PROPOSE:
+        return ""
+
+    scope = request.scope
+    levels = " then ".join(str(level) for level in scope.levels)
+    lines = [
+        "For this plan:",
+        f"- Produce these levels only: {levels}. Do not produce any other level.",
+    ]
+    if scope.plans_tasks:
+        lines.append(
+            f"- Size every Task in hours. final_estimate_hours = "
+            f"base_estimate_hours x {request.buffer_factor}."
+        )
+    else:
+        lines.append(
+            f"- There are no Tasks at this level, so give no hours. Size each "
+            f"{scope.sizing_level} in story points instead."
+        )
+    lines.append(
+        f"- Give every {scope.describable_level} acceptance criteria."
     )
+    return "\n".join(lines)

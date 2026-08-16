@@ -14,12 +14,15 @@ whose `may_create` is true. Belt (permissions) and braces (state).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID, uuid4
 
 from tech_planner.domain.errors import DomainError, InvalidTransition
 from tech_planner.domain.model.approval import ApprovalDecision, CreatedItem
+from tech_planner.domain.model.estimate import DEFAULT_BUFFER_FACTOR
 from tech_planner.domain.model.plan_proposal import PlanProposal
+from tech_planner.domain.model.scope import DEFAULT_SCOPE, PlanningScope
 from tech_planner.domain.rules.violations import ValidationReport
 
 
@@ -63,6 +66,14 @@ class PlanningSession:
     #: Identifies the system prompt text this session is running under, so an
     #: edit mid-session is visible rather than silent.
     prompt_revision: str | None = None
+    #: The planning cadence's level window. Decides which rules applied.
+    scope: PlanningScope = field(default=DEFAULT_SCOPE)
+    #: The estimate settings this plan was built with, recorded rather than
+    #: looked up. Propose on Monday at 1.30, lower the team default to 1.20 on
+    #: Tuesday, approve on Wednesday — the board must receive the numbers that
+    #: were reviewed and approved, not today's.
+    buffer_factor: Decimal = DEFAULT_BUFFER_FACTOR
+    capacity_hours: Decimal | None = None
     status: SessionStatus = SessionStatus.DRAFTING
     proposal: PlanProposal | None = None
     report: ValidationReport | None = None

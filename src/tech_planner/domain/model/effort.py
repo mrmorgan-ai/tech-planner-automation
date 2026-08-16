@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Final
 
-from tech_planner.domain.model.estimate import Estimate
+from tech_planner.domain.model.estimate import DEFAULT_BUFFER_FACTOR, Estimate
 
 #: Working hours in one day. Azure Boards stores effort in hours.
 HOURS_PER_DAY: Final[Decimal] = Decimal("8")
@@ -42,8 +42,12 @@ class TaskEffort:
     estimate: Estimate
 
     @classmethod
-    def of_hours(cls, base_hours: Decimal | int | str) -> TaskEffort:
-        return cls(Estimate.of(base_hours))
+    def of_hours(
+        cls,
+        base_hours: Decimal | int | str,
+        buffer_factor: Decimal = DEFAULT_BUFFER_FACTOR,
+    ) -> TaskEffort:
+        return cls(Estimate.of(base_hours, buffer_factor))
 
     @property
     def base_hours(self) -> Decimal:

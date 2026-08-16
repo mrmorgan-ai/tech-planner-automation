@@ -93,9 +93,24 @@ class WorkItem:
 
 @dataclass(frozen=True, kw_only=True)
 class _Describable(WorkItem):
-    """An item that carries acceptance criteria (everything except a Task)."""
+    """An item that carries acceptance criteria and may be sized in points.
+
+    Points sit here rather than on `UserStory` alone because the sizing level
+    moves with the planning cadence: an annual plan sizes Features, a quarterly
+    plan sizes User Stories. Hours stay on Tasks in every cadence, and the two
+    are never mixed on one item.
+    """
 
     acceptance_criteria: tuple[str, ...] = ()
+    story_points: int | None = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.story_points is not None and self.story_points <= 0:
+            raise DomainError(
+                f"{self.type} {self.ref!r} has non-positive story points: "
+                f"{self.story_points}"
+            )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -114,20 +129,7 @@ class Feature(_Describable):
 
 @dataclass(frozen=True, kw_only=True)
 class UserStory(_Describable):
-    """A story: the unit the sprint-fit rule applies to.
-
-    Story Points live on the story and hours live on its Tasks — the spec is
-    firm that the two are never mixed on the same item.
-    """
-
-    story_points: int | None = None
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if self.story_points is not None and self.story_points <= 0:
-            raise DomainError(
-                f"user story {self.ref!r} has non-positive story points: {self.story_points}"
-            )
+    """A story: the unit the sprint-fit rule applies to."""
 
     @property
     def type(self) -> WorkItemType:

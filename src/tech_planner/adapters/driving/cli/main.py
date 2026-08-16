@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from tech_planner import composition
@@ -27,7 +28,9 @@ from tech_planner.application.ports.session_repository import SessionNotFound
 from tech_planner.application.ports.settings_provider import SettingsError
 from tech_planner.domain.errors import DomainError
 from tech_planner.domain.model.approval import ApprovalDecision
+from tech_planner.application.ports.capacity_repository import resolve_capacity
 from tech_planner.domain.model.planning_session import SessionStatus
+from tech_planner.domain.model.scope import PlanningScope
 
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -40,6 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return int(asyncio.run(args.handler(args)))
     except (
+        InvalidOperation,
         SettingsError,
         SessionNotFound,
         DomainError,
@@ -79,6 +83,36 @@ def _parser() -> argparse.ArgumentParser:
     source.add_argument("requirement", nargs="?", help="the requirement, as text")
     source.add_argument("--file", type=Path, help="read the requirement from a file")
     plan.add_argument(
+        "--cadence",
+        default=None,
+        metavar="WHICH",
+        help=(
+            "which planning event this is: annual (Epic->Feature), quarterly "
+            "(Feature->UserStory), sprint (UserStory->Task), or an explicit "
+            "range like 'epic..feature'. Decides which rules apply."
+        ),
+    )
+    plan.add_argument(
+        "--buffer",
+        type=Decimal,
+        default=None,
+        metavar="FACTOR",
+        help="contingency multiplier for this run, overriding the configured one",
+    )
+    plan.add_argument(
+        "--capacity",
+        type=Decimal,
+        default=None,
+        metavar="HOURS",
+        help="buffered hours one story may carry, overriding sprint and config values",
+    )
+    plan.add_argument(
+        "--sprint",
+        default=None,
+        metavar="NAME",
+        help="sprint being planned; uses any capacity recorded for it",
+    )
+    plan.add_argument(
         "--yes",
         action="store_true",
         help="approve without prompting. Rules that block approval still block it.",
@@ -87,6 +121,12 @@ def _parser() -> argparse.ArgumentParser:
 
     sessions = sub.add_parser("sessions", help="list past planning sessions")
     sessions.set_defaults(handler=_sessions)
+
+    capacity = sub.add_parser("capacity", help="record capacity per sprint")
+    capacity.add_argument("sprint", nargs="?", help="sprint name")
+    capacity.add_argument("hours", nargs="?", type=Decimal, help="buffered hours")
+    capacity.add_argument("--clear", action="store_true", help="forget this sprint")
+    capacity.set_defaults(handler=_capacity)
 
     policy = sub.add_parser(
         "policy", help="show what each pass is permitted to do (the approval gate)"
@@ -136,7 +176,27 @@ async def _plan(args: argparse.Namespace) -> int:
     requirement = args.file.read_text(encoding="utf-8") if args.file else args.requirement
     app = composition.build(args.config)
 
-    started = await app.start_session(requirement)
+    scope = (
+        PlanningScope.parse(args.cadence)
+        if args.cadence
+        else PlanningScope.for_cadence(app.settings.cadence)
+    )
+    capacity = resolve_capacity(
+        app.capacity,
+        sprint=args.sprint,
+        override=args.capacity,
+        default=app.settings.story_capacity_hours,
+    )
+    buffer_factor = args.buffer if args.buffer is not None else app.settings.buffer_factor
+    print(f"planning {scope} \u00b7 buffer x{buffer_factor}", end="")
+    print(f" \u00b7 capacity {capacity}h" if scope.plans_tasks else "")
+
+    started = await app.start_session(
+        requirement,
+        scope=scope,
+        buffer_factor=buffer_factor,
+        capacity_hours=capacity,
+    )
     session_id = started.session.id
     print(f"session {session_id}\n")
 
@@ -151,7 +211,7 @@ async def _plan(args: argparse.Namespace) -> int:
     if proposal is None:
         return EXIT_FAILED
 
-    render_plan(proposal)
+    render_plan(proposal, buffer_factor)
 
     # The findings were already printed as they arrived, on the PlanValidated
     # event. This re-reads the session only to decide whether approval is even
@@ -198,6 +258,32 @@ def _confirm(assume_yes: bool, item_count: int) -> bool:
         return False
     answer = input(f"\nCreate these {item_count} work items? [y/N] ").strip().lower()
     return answer in {"y", "yes"}
+
+
+async def _capacity(args: argparse.Namespace) -> int:
+    """Record what a given sprint can actually take on.
+
+    Its own command because capacity changes roughly every two weeks — holidays,
+    a support rotation, a short week — which is far too often to be editing a
+    config file by hand.
+    """
+    repository = composition.capacity_repository()
+    if args.sprint and args.clear:
+        repository.clear(args.sprint)
+        print(f"cleared {args.sprint}")
+        return EXIT_OK
+    if args.sprint and args.hours is not None:
+        repository.set(args.sprint, args.hours)
+        print(f"{args.sprint}: {args.hours}h")
+        return EXIT_OK
+
+    recorded = repository.all()
+    if not recorded:
+        print("no per-sprint capacity recorded; the configured default applies")
+        return EXIT_OK
+    for sprint, hours in recorded.items():
+        print(f"{sprint:<24} {hours}h")
+    return EXIT_OK
 
 
 async def _sessions(_: argparse.Namespace) -> int:

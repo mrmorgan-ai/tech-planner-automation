@@ -4,7 +4,8 @@ The boundary where untrusted data becomes trusted. Two jobs:
 
 1. Map the flat payload onto `PlanProposal`, letting the domain's invariants
    reject anything malformed.
-2. Recompute the x1.30 buffer. The agent is asked for its own figure, and where
+2. Recompute the estimate buffer, using the factor in force for this run. The
+   agent is asked for its own figure, and where
    the two disagree **ours wins** and the disagreement is reported. This is the
    single most concrete reason the domain layer exists: the arithmetic is
    trivial and models still get it wrong somewhere across thirty tasks, quietly.
@@ -25,7 +26,11 @@ from typing import Any
 from tech_planner.domain.errors import DomainError
 from tech_planner.domain.model.approval import CreatedItem
 from tech_planner.domain.model.effort import TaskEffort
-from tech_planner.domain.model.estimate import Estimate, format_hours
+from tech_planner.domain.model.estimate import (
+    DEFAULT_BUFFER_FACTOR,
+    Estimate,
+    format_hours,
+)
 from tech_planner.domain.model.plan_proposal import PlanProposal
 from tech_planner.domain.model.sprint import Sprint
 from tech_planner.domain.model.work_item import (
@@ -50,7 +55,16 @@ class ParsedProposal:
     notes: tuple[RuleViolation, ...] = ()
 
 
-def parse_proposal(payload: Mapping[str, Any]) -> ParsedProposal:
+def parse_proposal(
+    payload: Mapping[str, Any],
+    *,
+    buffer_factor: Decimal = DEFAULT_BUFFER_FACTOR,
+) -> ParsedProposal:
+    """Map the agent's answer onto the domain, recomputing every estimate.
+
+    The factor is passed in rather than read from a constant, so a plan is
+    always buffered with the figure that was in force when it was proposed.
+    """
     raw_items = payload.get("items")
     if not isinstance(raw_items, Sequence) or not raw_items:
         raise MalformedProposal("the agent returned no work items")
@@ -60,7 +74,7 @@ def parse_proposal(payload: Mapping[str, Any]) -> ParsedProposal:
     for index, raw in enumerate(raw_items):
         if not isinstance(raw, Mapping):
             raise MalformedProposal(f"work item at position {index} is not an object")
-        items.append(_build_item(raw, notes))
+        items.append(_build_item(raw, notes, buffer_factor))
 
     try:
         proposal = PlanProposal(items=tuple(items))
@@ -73,7 +87,9 @@ def parse_proposal(payload: Mapping[str, Any]) -> ParsedProposal:
     return ParsedProposal(proposal=proposal, notes=tuple(notes))
 
 
-def _build_item(raw: Mapping[str, Any], notes: list[RuleViolation]) -> AnyWorkItem:
+def _build_item(
+    raw: Mapping[str, Any], notes: list[RuleViolation], buffer_factor: Decimal
+) -> AnyWorkItem:
     ref = _text(raw.get("ref"))
     if not ref:
         raise MalformedProposal("a work item has no ref")
@@ -92,21 +108,25 @@ def _build_item(raw: Mapping[str, Any], notes: list[RuleViolation]) -> AnyWorkIt
     }
 
     try:
+        # Every level above Task carries criteria and may carry points: the
+        # sizing level moves with the planning cadence.
+        described = {
+            "acceptance_criteria": _string_tuple(raw.get("acceptance_criteria")),
+            "story_points": _optional_int(raw.get("story_points"), ref, "story_points"),
+        }
         match item_type:
             case "Epic":
-                return Epic(**common, acceptance_criteria=_string_tuple(raw.get("acceptance_criteria")))
+                return Epic(**common, **described)
             case "Feature":
-                return Feature(
-                    **common, acceptance_criteria=_string_tuple(raw.get("acceptance_criteria"))
-                )
+                return Feature(**common, **described)
             case "UserStory":
-                return UserStory(
-                    **common,
-                    acceptance_criteria=_string_tuple(raw.get("acceptance_criteria")),
-                    story_points=_optional_int(raw.get("story_points"), ref, "story_points"),
-                )
+                return UserStory(**common, **described)
             case "Task":
-                return Task(**common, effort=_effort(raw, ref, notes), kind=_task_kind(raw, ref))
+                return Task(
+                    **common,
+                    effort=_effort(raw, ref, notes, buffer_factor),
+                    kind=_task_kind(raw, ref),
+                )
             case _:
                 raise MalformedProposal(
                     f"work item {ref!r} has unknown item_type {item_type!r}"
@@ -115,14 +135,19 @@ def _build_item(raw: Mapping[str, Any], notes: list[RuleViolation]) -> AnyWorkIt
         raise MalformedProposal(f"work item {ref!r} is invalid: {exc}") from exc
 
 
-def _effort(raw: Mapping[str, Any], ref: str, notes: list[RuleViolation]) -> TaskEffort:
+def _effort(
+    raw: Mapping[str, Any],
+    ref: str,
+    notes: list[RuleViolation],
+    buffer_factor: Decimal,
+) -> TaskEffort:
     base = _decimal(raw.get("base_estimate_hours"))
     if base is None:
         raise MalformedProposal(
             f"task {ref!r} has no base_estimate_hours; every task must be estimated"
         )
 
-    estimate = Estimate(base)
+    estimate = Estimate(base, buffer_factor)
     claimed = _decimal(raw.get("final_estimate_hours"))
     if claimed is not None and estimate.disagrees_with(claimed):
         notes.append(
@@ -132,7 +157,8 @@ def _effort(raw: Mapping[str, Any], ref: str, notes: list[RuleViolation]) -> Tas
                 item_ref=ref,
                 message=(
                     f"agent gave {format_hours(claimed)}h as the buffered estimate; "
-                    f"{format_hours(base)}h x 1.30 is {format_hours(estimate.final_hours)}h. "
+                    f"{format_hours(base)}h x {format_hours(buffer_factor)} is "
+                    f"{format_hours(estimate.final_hours)}h. "
                     "Using the computed figure."
                 ),
             )
@@ -196,8 +222,7 @@ def _dump_item(item: AnyWorkItem) -> dict[str, Any]:
         data["task_kind"] = str(item.kind)
     else:
         data["acceptance_criteria"] = list(item.acceptance_criteria)
-        if isinstance(item, UserStory):
-            data["story_points"] = item.story_points
+        data["story_points"] = item.story_points
     return data
 
 
