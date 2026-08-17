@@ -33,6 +33,7 @@ from tech_planner.application.events import (
     RunStarted,
     ToolFinished,
     ToolStarted,
+    TurnEnded,
 )
 from tech_planner.domain.model.estimate import format_hours
 from tech_planner.domain.model.plan_proposal import PlanProposal
@@ -91,6 +92,8 @@ def event_message(event: Event) -> tuple[str, dict[str, Any]]:
                     for i in event.items
                 ]
             }
+        case TurnEnded():
+            return "turn_ended", {"has_proposal": event.has_proposal}
         case RunFailed():
             return "run_failed", {"reason": event.reason, "retryable": event.retryable}
         case Notice():

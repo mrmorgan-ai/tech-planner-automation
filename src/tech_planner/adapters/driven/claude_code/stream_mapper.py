@@ -26,6 +26,7 @@ from tech_planner.adapters.driven.claude_code.dto import (
     parse_creation_report,
     parse_proposal,
 )
+from tech_planner.adapters.driven.policy.tool_policy import STRUCTURED_OUTPUT_TOOL
 from tech_planner.domain.model.estimate import DEFAULT_BUFFER_FACTOR
 from tech_planner.application.events import (
     AgentRetrying,
@@ -40,6 +41,7 @@ from tech_planner.application.events import (
     RunStarted,
     ToolFinished,
     ToolStarted,
+    TurnEnded,
 )
 
 #: MCP server states that mean the server is usable.
@@ -56,6 +58,7 @@ class StreamMapper:
         session_id: str,
         required_servers: tuple[str, ...] = (),
         buffer_factor: Decimal = DEFAULT_BUFFER_FACTOR,
+        interactive: bool = False,
     ) -> None:
         self._kind = kind
         self._session_id = session_id
@@ -63,6 +66,11 @@ class StreamMapper:
         #: work-tracking backend's. Only these are fatal when unhealthy.
         self._required_servers = required_servers
         self._buffer_factor = buffer_factor
+        #: In a conversation a `result` ends a *turn*, not the session, and the
+        #: runtime re-announces itself with a fresh `init` before each one.
+        #: Both facts change what this mapper does with those messages.
+        self._interactive = interactive
+        self._announced = False
         self._saw_terminal = False
 
     @property
@@ -134,16 +142,19 @@ class StreamMapper:
             )
             return
 
-        if incidental := tuple(
-            detail
-            for name, detail in unhealthy.items()
-            if name not in self._required_servers
-        ):
-            yield Notice(
-                message="MCP servers unavailable (not required for planning): "
-                + ", ".join(sorted(incidental)),
-                level="info",
-            )
+        # Connectors that are merely unauthorised are *not* reported. A
+        # developer's environment always has a few sitting in `needs-auth` that
+        # have nothing to do with planning, and opening every session with a
+        # ten-line inventory of them buries the one thing the user came for.
+        # The backend is the only server whose absence matters, and that case is
+        # handled above, fatally.
+
+        if self._announced:
+            # Every turn of a conversation re-announces the session. Reporting
+            # it each time would fill the transcript with identical banners and
+            # make a second turn look like a second run.
+            return
+        self._announced = True
 
         raw_tools = message.get("tools")
         yield RunStarted(
@@ -164,10 +175,13 @@ class StreamMapper:
                     if text := str(block.get("text") or "").strip():
                         yield AssistantMessage(text=text)
                 case "tool_use":
-                    yield ToolStarted(
-                        name=str(block.get("name") or "tool"),
-                        detail=_summarize(block.get("input")),
-                    )
+                    name = str(block.get("name") or "tool")
+                    if name == STRUCTURED_OUTPUT_TOOL:
+                        # How the answer is handed back, not something the agent
+                        # *did*. Showing it printed the entire plan as raw JSON
+                        # immediately above the same plan, rendered properly.
+                        continue
+                    yield ToolStarted(name=name, detail=_summarize(block.get("input")))
 
     def _user(self, message: Mapping[str, Any]) -> Iterator[Event]:
         for block in _content(message):
@@ -232,6 +246,13 @@ class StreamMapper:
 
         payload = message.get("structured_output")
         if not isinstance(payload, Mapping):
+            if self._interactive:
+                # A conversational turn. The agent answered in words — asked
+                # what the requirement actually is, said what it needs — which
+                # is legitimate here even though it means nothing in a one-shot
+                # pass, where a result with no plan is a run that produced none.
+                yield TurnEnded(has_proposal=False)
+                return
             yield RunFailed(
                 reason=(
                     "the run reported success but returned no structured output; "
@@ -241,10 +262,35 @@ class StreamMapper:
             )
             return
 
+        if self._kind is PassKind.PROPOSE and not payload.get("items"):
+            # The agent judged the message unplannable and said so in words.
+            # That is an answer, not a failure — and far better than the
+            # invented "capture the requirement" story it used to return when
+            # the schema demanded at least one item.
+            if self._interactive:
+                yield TurnEnded(has_proposal=False)
+                return
+            yield RunFailed(
+                reason="the agent returned no work items for this requirement",
+                retryable=True,
+            )
+            return
+
         try:
             yield from self._terminal_from(payload)
         except MalformedProposal as exc:
+            if self._interactive:
+                # Recoverable in a conversation: say so and let the user ask
+                # again, rather than tearing down a session that still holds
+                # everything the agent has learned.
+                yield Notice(message=f"the agent's plan could not be read: {exc}", level="warning")
+                yield TurnEnded(has_proposal=False)
+                return
             yield RunFailed(reason=str(exc), retryable=True)
+            return
+
+        if self._interactive:
+            yield TurnEnded(has_proposal=True)
 
     def _terminal_from(self, payload: Mapping[str, Any]) -> Iterator[Event]:
         if self._kind is PassKind.PROPOSE:

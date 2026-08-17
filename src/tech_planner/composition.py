@@ -24,6 +24,7 @@ from tech_planner.adapters.driven.persistence.session_repository import JsonSess
 from tech_planner.application.ports.agent_gateway import AgentGateway
 from tech_planner.application.settings import Settings
 from tech_planner.application.use_cases.approve_and_create import ApproveAndCreate
+from tech_planner.application.use_cases.converse_plan import ConversePlan
 from tech_planner.application.use_cases.edit_system_prompt import EditSystemPrompt
 from tech_planner.application.use_cases.manage_context_files import ManageContextFiles
 from tech_planner.application.use_cases.propose_plan import ProposePlan
@@ -50,6 +51,9 @@ class Application:
     agent: AgentGateway
     start_session: StartPlanningSession
     propose: ProposePlan
+    #: Planning as a multi-turn session. `propose` remains for the CLI, which
+    #: asks once and prints once; the web app opens one of these instead.
+    converse: ConversePlan
     approve: ApproveAndCreate
     prompt: EditSystemPrompt
     context: ManageContextFiles
@@ -72,6 +76,13 @@ def build(config_path: Path = DEFAULT_PATH) -> Application:
         agent=gateway,
         start_session=StartPlanningSession(agent=gateway, sessions=sessions),
         propose=ProposePlan(
+            agent=gateway,
+            sessions=sessions,
+            prompts=prompts,
+            context=context,
+            settings=settings_provider,
+        ),
+        converse=ConversePlan(
             agent=gateway,
             sessions=sessions,
             prompts=prompts,

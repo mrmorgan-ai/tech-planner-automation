@@ -16,12 +16,14 @@ their subscription for them.
 from __future__ import annotations
 
 import asyncio
+import shutil
+import tempfile
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -51,6 +53,7 @@ from tech_planner.application.ports.session_repository import SessionNotFound
 from tech_planner.application.ports.settings_provider import SettingsError
 from tech_planner.application.settings import Settings
 from tech_planner.application.use_cases.edit_system_prompt import EmptyPrompt
+from tech_planner.application.use_cases.converse_plan import PlanningConversation
 from tech_planner.application.use_cases.manage_context_files import ContextFileNotFound
 from tech_planner.domain.errors import DomainError
 from tech_planner.domain.model.approval import ApprovalDecision
@@ -127,9 +130,18 @@ def create_app(config_path: Path = composition.DEFAULT_PATH) -> FastAPI:
         app.state.planner = composition.build(config_path)
         app.state.runs = RunRegistry()
         app.state.config_path = config_path
+
+        # Warm the preflight in the background. It costs a runtime start, and
+        # paying it here — while the user is still opening the page — is the
+        # difference between a session opening instantly and half a minute of
+        # nothing before the first line of a plan. Failures are ignored: the
+        # first real session will retry and report properly.
+        warm = asyncio.ensure_future(app.state.planner.agent.preflight())
+        warm.add_done_callback(lambda task: task.exception())
         try:
             yield
         finally:
+            warm.cancel()
             # Every live run holds a `claude` subprocess. They are ours to reap.
             await app.state.runs.shutdown()
 
@@ -256,18 +268,33 @@ def _register_routes(app: FastAPI) -> None:
     async def send_message(
         request: Request, session_id: str, body: Message
     ) -> dict[str, object]:
-        """Ask for a plan. Returns immediately; the run streams on `/events`.
+        """Take a turn. Opens the conversation if this is the first one.
 
-        Accepted rather than awaited because a planning pass takes minutes, and
-        an HTTP request held open for minutes is a request that dies to a proxy
-        timeout somewhere and takes the run with it.
+        Accepted rather than awaited because a turn takes minutes, and an HTTP
+        request held open for minutes is one that dies to a proxy timeout
+        somewhere and takes the run with it. The answer arrives on `/events`.
+
+        A second message does *not* start a second run: it is spoken into the
+        session already open, so the agent still has the iterations it queried
+        and the code it read, and "split that story" costs one turn instead of
+        a fresh investigation that might reach different conclusions.
         """
         planner = _planner(request)
         # Fails now with a 404 rather than inside a background task, where the
         # only symptom would be an event stream that opens and says nothing.
         composition.sessions_repository().get(session_id)
-        _start(request, session_id, lambda: planner.propose(session_id, body.text))
-        return {"session_id": session_id, "started": True}
+
+        live = _runs(request).get(session_id)
+        if live is not None and live.running and live.interactive:
+            try:
+                await live.send(body.text)
+            except RunConflict as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            return {"session_id": session_id, "started": False, "turn": "continued"}
+
+        conversation = await planner.converse(session_id, body.text)
+        _start(request, session_id, conversation.events, conversation)
+        return {"session_id": session_id, "started": True, "turn": "opened"}
 
     @app.post("/sessions/{session_id}/approve", status_code=202, tags=["sessions"])
     async def approve(
@@ -304,6 +331,12 @@ def _register_routes(app: FastAPI) -> None:
             if body.approved
             else ApprovalDecision.reject(body.note)
         )
+        # Close the planning conversation first. It is still open — that is the
+        # point of a conversation — and it holds the session's only run slot.
+        # Ending it here is also what makes the gate structural: the create pass
+        # is a fresh process with different permissions, never the planning one
+        # talked into writing.
+        await _runs(request).cancel(session_id)
         _start(request, session_id, lambda: planner.approve(session_id, decision))
         return {"session_id": session_id, "approved": body.approved}
 
@@ -384,6 +417,38 @@ def _register_routes(app: FastAPI) -> None:
             "size_bytes": attached.size_bytes,
         }
 
+    @app.post("/context/upload", status_code=201, tags=["context"])
+    async def upload_context(
+        request: Request, files: list[UploadFile] = File(...)
+    ) -> list[dict[str, object]]:
+        """Attach documents by uploading them.
+
+        The path-based route below is the honest one for a local tool, and it
+        is useless to anyone who is not a developer: it asks you to know and
+        type an absolute path. A browser will not disclose one, so dragging a
+        file in has to send the bytes. They are written to a temporary file and
+        handed to the same repository, so both routes converge immediately and
+        the agent still reads a real file from disk.
+        """
+        attached: list[dict[str, object]] = []
+        for upload in files:
+            name = Path(upload.filename or "attachment").name
+            with tempfile.NamedTemporaryFile(delete=False) as handle:
+                shutil.copyfileobj(upload.file, handle)
+                staged = Path(handle.name)
+            try:
+                stored = _planner(request).context.attach(staged, name=name)
+            finally:
+                staged.unlink(missing_ok=True)
+            attached.append(
+                {
+                    "name": stored.name,
+                    "path": str(stored.path),
+                    "size_bytes": stored.size_bytes,
+                }
+            )
+        return attached
+
     @app.delete("/context/{name}", status_code=204, tags=["context"])
     async def detach_context(request: Request, name: str) -> None:
         _planner(request).context.detach(name)
@@ -421,9 +486,14 @@ def _pass_policy(kind: PassKind, settings: Settings) -> dict[str, object]:
     }
 
 
-def _start(request: Request, session_id: str, source: EventSource) -> None:
+def _start(
+    request: Request,
+    session_id: str,
+    source: EventSource,
+    conversation: PlanningConversation | None = None,
+) -> None:
     try:
-        _runs(request).start(session_id, source)
+        _runs(request).start(session_id, source, conversation)
     except RunConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -436,22 +506,35 @@ async def _stream(run: Run, request: Request) -> AsyncIterator[str]:
     it was watching is never reaped.
     """
     messages = run.subscribe()
+    pending: asyncio.Task[tuple[str, dict[str, object]]] | None = None
     try:
         while True:
-            try:
-                name, payload = await asyncio.wait_for(
-                    anext(messages), timeout=_KEEPALIVE_SECONDS
-                )
-            except TimeoutError:
+            # The wait is on a task that survives the timeout. `wait_for` would
+            # *cancel* the pull instead, and cancelling `anext` throws into the
+            # generator, runs its `finally` and ends it for good — after which
+            # every later pull raises StopAsyncIteration and the stream reports
+            # itself closed. That fired after fifteen seconds of quiet, which is
+            # exactly what a thinking agent produces, so a working run looked
+            # like a finished one and the client stopped listening.
+            if pending is None:
+                pending = asyncio.ensure_future(anext(messages))
+            done, _ = await asyncio.wait({pending}, timeout=_KEEPALIVE_SECONDS)
+            if not done:
                 if await request.is_disconnected():
                     return
                 yield comment("keep-alive")
                 continue
+            try:
+                name, payload = pending.result()
             except StopAsyncIteration:
                 yield sse("stream_closed", {"session_id": run.session_id})
                 return
+            finally:
+                pending = None
             yield sse(name, payload)
     finally:
+        if pending is not None:
+            pending.cancel()
         await messages.aclose()
 
 
@@ -466,6 +549,10 @@ def _register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(SessionNotFound)
     async def _not_found(_: Request, exc: SessionNotFound) -> JSONResponse:
         return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+    @app.exception_handler(FileExistsError)
+    async def _already_there(_: Request, exc: FileExistsError) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
 
     @app.exception_handler(ContextFileNotFound)
     async def _no_file(_: Request, exc: ContextFileNotFound) -> JSONResponse:

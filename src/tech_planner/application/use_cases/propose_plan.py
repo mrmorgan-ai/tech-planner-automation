@@ -62,6 +62,7 @@ class ProposePlan:
             resume=session.status is not SessionStatus.DRAFTING,
             scope=session.scope,
             buffer_factor=session.buffer_factor,
+            capacity_hours=session.capacity_hours,
         )
 
         proposal = None

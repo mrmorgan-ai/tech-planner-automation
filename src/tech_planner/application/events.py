@@ -118,6 +118,24 @@ class CreationReported(Event):
 
 
 @dataclass(frozen=True, slots=True)
+class TurnEnded(Event):
+    """One turn of an interactive conversation finished; the session lives on.
+
+    The one-shot passes have a terminal event and then silence. A conversation
+    does not: the agent may answer a question, ask one back, or revise a plan,
+    and each of those ends a turn without ending anything else. This is what
+    tells the UI it may accept typing again.
+
+    `has_proposal` is false for a turn that was genuinely conversational. That
+    is not a failure — in a one-shot pass a result carrying no plan means the
+    run produced nothing, but in a conversation it means the agent replied with
+    words, which is a thing it is allowed to do.
+    """
+
+    has_proposal: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class RunFailed(Event):
     """Terminal event of a pass that did not produce its expected output."""
 

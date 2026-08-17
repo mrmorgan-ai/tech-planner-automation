@@ -31,7 +31,8 @@ REQ ?= Add a health check endpoint at /healthz that reports database connectivit
 
 .DEFAULT_GOAL := help
 .PHONY: help install config check rules policy prompt doctor \
-        plan plan-yes api api-dev capacity sessions session clean reset
+        plan plan-yes api api-dev web web-install web-build \
+        capacity sessions session clean reset
 
 ## ---------------------------------------------------------------------------
 ## Getting started
@@ -92,6 +93,19 @@ api: ## Serve the HTTP API on 127.0.0.1 for the web app
 api-dev: ## Same, restarting on code changes. A reload kills any live run.
 	@$(RUN) tech-planner-api --config $(CONFIG) --port $(PORT) --reload
 
+## The web app is a separate npm project and a separate process. Run `make api`
+## in one terminal and `make web` in another; Vite proxies /api to the backend,
+## so the browser only ever talks to one origin.
+
+web-install: ## Install the web app's dependencies
+	@cd apps/web && npm install
+
+web: ## Run the web app on 5173 (needs `make api` in another terminal)
+	@cd apps/web && npm run dev
+
+web-build: ## Type-check and build the web app for production
+	@cd apps/web && npm run build
+
 capacity: ## Show or set per-sprint capacity: make capacity SPRINT="Sprint 13" CAPACITY=48
 	@$(PLANNER) --config $(CONFIG) capacity $(if $(SPRINT),"$(SPRINT)") $(CAPACITY)
 
@@ -106,7 +120,8 @@ session: ## Show one session's stored record: make session ID=<uuid>
 ## Housekeeping
 ## ---------------------------------------------------------------------------
 
-clean: ## Remove caches and the agent's scratch workspace
+clean: ## Remove caches, build output and the agent's scratch workspace
+	@rm -rf apps/web/dist
 	@find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
 	@find . -type d -name '*.egg-info' -prune -exec rm -rf {} + 2>/dev/null || true
 	@rm -rf .pytest_cache .ruff_cache .mypy_cache

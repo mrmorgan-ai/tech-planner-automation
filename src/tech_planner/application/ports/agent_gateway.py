@@ -57,6 +57,47 @@ class AgentRequest:
     #: request so a plan is always buffered with the figure it was proposed
     #: under, even if the team default changes before it is approved.
     buffer_factor: Decimal = DEFAULT_BUFFER_FACTOR
+    #: Buffered hours one User Story may carry and still fit a sprint.
+    #:
+    #: Sent to the agent, not just used to judge it afterwards. Without it the
+    #: agent is told stories must fit a sprint but not what a sprint holds, so
+    #: it produces hundred-hour stories in good faith and only finds out they
+    #: are unapprovable after several minutes of work. Telling it the number is
+    #: how the rules stop being a surprise.
+    capacity_hours: Decimal | None = None
+
+
+@runtime_checkable
+class Conversation(Protocol):
+    """A live agent session that accepts more than one turn.
+
+    The one-shot `run` is a question and an answer. This is a conversation: the
+    process stays alive between turns, so the agent keeps everything it learned
+    — the iterations it queried, the code it read — and a follow-up like "split
+    that story" costs one turn instead of a whole new investigation.
+
+    It exists alongside `run` rather than replacing it because the approval gate
+    depends on the difference. A conversation runs under one set of tool
+    permissions for its whole life; permissions cannot be changed mid-process.
+    So planning is a conversation, and creating is a separate pass, launched
+    with the backend's write tools unlocked only once a plan has been approved.
+    """
+
+    async def send(self, text: str) -> None:
+        """Submit a turn. Its events arrive on :meth:`events`."""
+        ...
+
+    def events(self) -> AsyncIterator[Event]:
+        """Every event for the whole conversation, turn after turn.
+
+        Each turn ends with `TurnEnded`, or with `RunFailed` if the session is
+        over. The iterator ends when the conversation closes.
+        """
+        ...
+
+    async def close(self) -> None:
+        """End the conversation and stop the runtime behind it."""
+        ...
 
 
 @runtime_checkable
@@ -76,6 +117,15 @@ class AgentGateway(Protocol):
 
     def run(self, request: AgentRequest) -> AsyncIterator[Event]:
         """Execute one pass. The returned stream is single-use."""
+        ...
+
+    async def converse(self, request: AgentRequest) -> Conversation:
+        """Open a multi-turn session for the request's first turn.
+
+        Only ever used for PROPOSE. A CREATE pass is deliberately one-shot:
+        it is the pass that writes, and a process that can take another turn is
+        a process whose scope can still change after it was approved.
+        """
         ...
 
     async def preflight(self) -> tuple[str, ...]:

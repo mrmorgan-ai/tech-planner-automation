@@ -69,7 +69,7 @@ _OMITTED_ON_PURPOSE = {
     "--disable-slash-commands": "would drop the user's own commands and skills",
     "--tools": "restricts the toolset outright, stripping the user's environment",
     "--append-system-prompt": "we replace the default prompt rather than add to it",
-    "--input-format": "one turn per pass for now; needed when the UI streams turns in",
+    "--replay-user-messages": "we already know what we sent; echoing it back is noise",
 }
 
 
@@ -90,12 +90,24 @@ class Launch:
 
 
 def build_launch(
-    request: AgentRequest, settings: Settings, *, system_prompt_path: Path
+    request: AgentRequest,
+    settings: Settings,
+    *,
+    system_prompt_path: Path,
+    interactive: bool = False,
 ) -> Launch:
     agent = settings.agent
     permissions = permissions_for(request.kind, settings)
 
-    argv: list[str] = [agent.binary, "-p", _turn(request)]
+    # Interactive runs take their turns on stdin instead of the command line,
+    # so `-p` carries no prompt. The first turn is written in by the caller the
+    # moment the process is up, which keeps one code path for every turn rather
+    # than making the first one special.
+    argv: list[str] = [agent.binary, "-p"]
+    if interactive:
+        argv += ["--input-format", "stream-json"]
+    else:
+        argv.append(turn_text(request))
 
     # Machine-readable streaming. `--verbose` is required for stream-json to
     # emit anything beyond the final result.
@@ -203,7 +215,7 @@ def _schema_for(request: AgentRequest) -> dict[str, Any]:
     return creation_report_schema()
 
 
-def _turn(request: AgentRequest) -> str:
+def turn_text(request: AgentRequest) -> str:
     """The user turn, with any attached context documents named as paths.
 
     The files are named rather than inlined. The agent has file tools, and
@@ -238,6 +250,17 @@ def _brief(request: AgentRequest) -> str:
             f"- Size every Task in hours. final_estimate_hours = "
             f"base_estimate_hours x {request.buffer_factor}."
         )
+        if request.capacity_hours is not None:
+            # The number the plan is judged against, given to the agent rather
+            # than kept for the verdict. "Stories must fit a sprint" is not
+            # actionable without it, and a story found to be 40 hours too big
+            # after the fact costs a whole turn to fix.
+            lines.append(
+                f"- No User Story may exceed {request.capacity_hours} buffered "
+                f"hours — that is one sprint. Add up its Tasks' final hours "
+                f"before you settle on the split, and if a story goes over, "
+                f"split it into stories that each deliver a verifiable result."
+            )
     else:
         lines.append(
             f"- There are no Tasks at this level, so give no hours. Size each "
@@ -245,5 +268,11 @@ def _brief(request: AgentRequest) -> str:
         )
     lines.append(
         f"- Give every {scope.describable_level} acceptance criteria."
+    )
+    lines.append(
+        "- If this message is not a requirement you can plan — a greeting, a "
+        "question, or a scope too vague to size — reply in words, ask for what "
+        "you need, and return an empty items array. Do not invent a "
+        "placeholder plan to have something to return."
     )
     return "\n".join(lines)

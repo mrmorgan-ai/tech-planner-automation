@@ -66,10 +66,20 @@ def plan_proposal_schema(scope: PlanningScope = DEFAULT_SCOPE) -> dict[str, Any]
             },
             "items": {
                 "type": "array",
-                "minItems": 1,
+                # Zero is allowed on purpose. A schema demanding at least one
+                # item forces a plan out of every message, so a greeting or a
+                # half-formed idea came back as an invented "capture the
+                # requirement" story that the rules then rejected — noise
+                # dressed up as work. An empty list is how the agent says "this
+                # is not something I can plan yet", and the turn stays a
+                # conversation.
+                "minItems": 0,
                 "description": (
                     "Every work item, flat. Express the hierarchy through "
-                    "parent_ref, not by nesting."
+                    "parent_ref, not by nesting. Return an empty array when the "
+                    "message is not yet a plannable requirement — a greeting, a "
+                    "question, or a scope too vague to size. Never invent a "
+                    "placeholder plan."
                 ),
                 "items": _work_item_schema(scope),
             },

@@ -29,6 +29,7 @@ from contextlib import aclosing, suppress
 from typing import Any
 
 from tech_planner.application.events import Event, RunFailed
+from tech_planner.application.use_cases.converse_plan import PlanningConversation as Conversation
 from tech_planner.adapters.driving.http.serialization import event_message
 
 #: How long a run may keep running with nobody watching. Long enough to survive
@@ -53,11 +54,22 @@ class RunConflict(RuntimeError):
 
 
 class Run:
-    """One agent pass, from the POST that started it to its terminal event."""
+    """One agent pass, from the POST that started it to its terminal event.
 
-    def __init__(self, session_id: str, source: EventSource) -> None:
+    Or, when it carries a conversation, one *session*: the stream then stays
+    open across many turns and only ends when the runtime does. `send` is what
+    makes the difference — a one-shot pass has nothing to say to, and refuses.
+    """
+
+    def __init__(
+        self,
+        session_id: str,
+        source: EventSource,
+        conversation: Conversation | None = None,
+    ) -> None:
         self.session_id = session_id
         self._source = source
+        self._conversation = conversation
         self._history: list[tuple[str, dict[str, Any]]] = []
         self._subscribers: set[asyncio.Queue[Any]] = set()
         self._finished = asyncio.Event()
@@ -75,9 +87,29 @@ class Run:
     def running(self) -> bool:
         return not self._finished.is_set()
 
+    @property
+    def interactive(self) -> bool:
+        return self._conversation is not None
+
+    async def send(self, text: str) -> None:
+        """Take another turn in a live conversation."""
+        if self._conversation is None:
+            raise RunConflict(
+                f"session {self.session_id} is running a one-shot pass, which "
+                "cannot take another turn; wait for it to finish"
+            )
+        if not self.running:
+            raise RunConflict(f"the conversation for session {self.session_id} has ended")
+        await self._conversation.send(text)
+
     async def cancel(self) -> None:
         """Stop the run and, with it, the runtime process behind it."""
         self._disarm_reaper()
+        if self._conversation is not None:
+            # Closing stdin lets the runtime shut down of its own accord, which
+            # is tidier than cancelling the reader out from under it.
+            with suppress(Exception):
+                await self._conversation.close()
         if self._task is not None and not self._task.done():
             self._task.cancel()
             with suppress(asyncio.CancelledError):
@@ -179,14 +211,19 @@ class RunRegistry:
     def __init__(self) -> None:
         self._runs: dict[str, Run] = {}
 
-    def start(self, session_id: str, source: EventSource) -> Run:
+    def start(
+        self,
+        session_id: str,
+        source: EventSource,
+        conversation: Conversation | None = None,
+    ) -> Run:
         existing = self._runs.get(session_id)
         if existing is not None and existing.running:
             raise RunConflict(
                 f"session {session_id} already has a run in flight; "
                 "wait for it or cancel it first"
             )
-        run = Run(session_id, source)
+        run = Run(session_id, source, conversation)
         self._runs[session_id] = run
         run.start()
         return run

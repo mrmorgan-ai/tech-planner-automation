@@ -104,6 +104,100 @@ async def stream_messages(launch: Launch) -> AsyncIterator[Mapping[str, Any]]:
         )
 
 
+class AgentProcess:
+    """A runtime kept alive across several turns.
+
+    `stream_messages` above spawns a process, reads one answer and lets it die.
+    This does not: the process is started once and fed turns as newline-
+    delimited JSON on stdin, which is what `--input-format stream-json` expects.
+
+    Keeping it alive is the entire point. The agent researched the backend's
+    iterations and read the code on turn one; a follow-up such as "split that
+    story in two" should cost one turn, not a fresh investigation that might
+    reach different conclusions than the plan already on screen.
+
+    Verified against the runtime rather than assumed: one process answers turn
+    after turn, emitting a `system/init` and a `result` for each, and exits 0
+    when stdin closes.
+    """
+
+    def __init__(self, launch: Launch) -> None:
+        self._launch = launch
+        self._process: asyncio.subprocess.Process | None = None
+        self._stderr: asyncio.Future[str] | None = None
+
+    async def start(self) -> None:
+        ensure_runtime(self._launch.argv[0])
+        self._launch.cwd.mkdir(parents=True, exist_ok=True)
+        self._process = await asyncio.create_subprocess_exec(
+            *self._launch.argv,
+            cwd=str(self._launch.cwd),
+            env=dict(self._launch.env),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            limit=_STREAM_LIMIT,
+        )
+        assert self._process.stderr is not None
+        self._stderr = asyncio.ensure_future(_drain(self._process.stderr))
+
+    @property
+    def alive(self) -> bool:
+        return self._process is not None and self._process.returncode is None
+
+    async def send(self, text: str) -> None:
+        """Write one user turn."""
+        if self._process is None or self._process.stdin is None or not self.alive:
+            raise RuntimeFailed("the agent session is no longer running")
+        line = json.dumps(
+            {
+                "type": "user",
+                "message": {"role": "user", "content": [{"type": "text", "text": text}]},
+            },
+            separators=(",", ":"),
+        )
+        self._process.stdin.write((line + "\n").encode("utf-8"))
+        await self._process.stdin.drain()
+
+    async def messages(self) -> AsyncIterator[Mapping[str, Any]]:
+        """Every decoded message, for the life of the conversation."""
+        if self._process is None or self._process.stdout is None:
+            raise RuntimeFailed("the agent session was never started")
+        async for line in self._process.stdout:
+            text = line.decode("utf-8", errors="replace").strip()
+            if not text:
+                continue
+            try:
+                message = json.loads(text, parse_float=Decimal)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(message, Mapping):
+                yield message
+
+    async def close(self) -> None:
+        """Close stdin and stop the process.
+
+        Closing stdin first is what makes a clean exit possible: the runtime
+        treats it as the end of the conversation and shuts down of its own
+        accord. `_shutdown` is the fallback for when it does not.
+        """
+        if self._process is None:
+            return
+        if self._process.stdin is not None and not self._process.stdin.is_closing():
+            with suppress(BrokenPipeError, ConnectionResetError):
+                self._process.stdin.close()
+        await _shutdown(self._process)
+        if self._stderr is not None:
+            self._stderr.cancel()
+
+    async def stderr_text(self) -> str:
+        if self._stderr is None:
+            return ""
+        with suppress(asyncio.CancelledError):
+            return (await self._stderr).strip()
+        return ""
+
+
 async def _drain(stream: asyncio.StreamReader) -> str:
     chunks: list[bytes] = []
     with suppress(asyncio.CancelledError, ValueError):
