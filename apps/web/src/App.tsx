@@ -167,7 +167,7 @@ export default function App() {
     <div className="app">
       <header className="top">
         <div className="brand">
-          <strong>tech-planner</strong>
+          <strong>Planify</strong>
           <span className="tagline">running on your Claude Code subscription</span>
         </div>
 

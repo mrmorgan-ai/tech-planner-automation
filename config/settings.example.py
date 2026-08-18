@@ -13,13 +13,13 @@ backend's, and those live in the environment rather than in this file. Run
 from decimal import Decimal
 from pathlib import Path
 
-from tech_planner.application.settings import (
+from planify.application.settings import (
     AgentSettings,
     BackendSettings,
     Settings,
     ToolProfile,
 )
-from tech_planner.domain.model.scope import PlanningCadence
+from planify.domain.model.scope import PlanningCadence
 
 settings = Settings(
     backend=BackendSettings(
@@ -104,7 +104,7 @@ settings = Settings(
     #
     # This is the fallback. Capacity really changes every sprint, so record it
     # per sprint instead and leave this as the floor:
-    #     tech-planner capacity "Sprint 13" 48
+    #     planify capacity "Sprint 13" 48
     story_capacity_hours=Decimal("64"),
     require_acceptance_criteria=True,
 )

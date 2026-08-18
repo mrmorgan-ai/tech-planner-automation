@@ -10,11 +10,11 @@ Run via `make rules`.
 
 from __future__ import annotations
 
-from tech_planner.domain.model.effort import TaskEffort
-from tech_planner.domain.model.plan_proposal import PlanProposal
-from tech_planner.domain.model.work_item import Task, TaskKind, UserStory
-from tech_planner.domain.model.scope import PlanningCadence, PlanningScope
-from tech_planner.domain.rules.planning_rules import validate
+from planify.domain.model.effort import TaskEffort
+from planify.domain.model.plan_proposal import PlanProposal
+from planify.domain.model.work_item import Task, TaskKind, UserStory
+from planify.domain.model.scope import PlanningCadence, PlanningScope
+from planify.domain.rules.planning_rules import validate
 
 # One story, two tasks. The first is well over the two-day ceiling; together
 # they are far over a sprint's capacity; the Definition of Done is barely

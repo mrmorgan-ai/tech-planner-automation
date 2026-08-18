@@ -1,4 +1,4 @@
-# tech-planner — development entry points.
+# planify — development entry points.
 #
 # Everything runs through `uv`. There is no pip, no requirements.txt and no
 # hand-managed venv: `uv run` creates and syncs the environment on demand, so
@@ -10,7 +10,7 @@
 
 UV      ?= uv
 RUN     := $(UV) run
-PLANNER := $(RUN) tech-planner
+PLANNER := $(RUN) planify
 CONFIG  ?= config/settings.py
 
 # Where `make api` listens. Localhost only — the API has no authentication and
@@ -31,7 +31,7 @@ REQ ?= Add a health check endpoint at /healthz that reports database connectivit
 
 .DEFAULT_GOAL := help
 .PHONY: help install config check rules policy prompt doctor \
-        plan plan-yes api api-dev web web-install web-build \
+        plan plan-yes api api-dev web web-install web-build start stop \
         capacity sessions session clean reset
 
 ## ---------------------------------------------------------------------------
@@ -39,7 +39,7 @@ REQ ?= Add a health check endpoint at /healthz that reports database connectivit
 ## ---------------------------------------------------------------------------
 
 help: ## Show this help
-	@echo "tech-planner"
+	@echo "planify"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-11s\033[0m %s\n", $$1, $$2}'
 	@echo ""
@@ -88,10 +88,10 @@ plan-yes: ## Plan REQ and create the items unprompted — this writes to the bac
 	@$(PLANNER) --config $(CONFIG) plan $(PLAN_ARGS) "$(REQ)" --yes
 
 api: ## Serve the HTTP API on 127.0.0.1 for the web app
-	@$(RUN) tech-planner-api --config $(CONFIG) --port $(PORT)
+	@$(RUN) planify-api --config $(CONFIG) --port $(PORT)
 
 api-dev: ## Same, restarting on code changes. A reload kills any live run.
-	@$(RUN) tech-planner-api --config $(CONFIG) --port $(PORT) --reload
+	@$(RUN) planify-api --config $(CONFIG) --port $(PORT) --reload
 
 ## The web app is a separate npm project and a separate process. Run `make api`
 ## in one terminal and `make web` in another; Vite proxies /api to the backend,
@@ -106,6 +106,12 @@ web: ## Run the web app on 5173 (needs `make api` in another terminal)
 web-build: ## Type-check and build the web app for production
 	@cd apps/web && npm run build
 
+start: ## Start both the API and the web app in the background (logs in .planify/logs)
+	@CONFIG=$(CONFIG) PORT=$(PORT) scripts/dev.sh
+
+stop: ## Stop the background API and web app started by `make start`
+	@scripts/dev-stop.sh
+
 capacity: ## Show or set per-sprint capacity: make capacity SPRINT="Sprint 13" CAPACITY=48
 	@$(PLANNER) --config $(CONFIG) capacity $(if $(SPRINT),"$(SPRINT)") $(CAPACITY)
 
@@ -114,7 +120,7 @@ sessions: ## List past planning sessions
 
 session: ## Show one session's stored record: make session ID=<uuid>
 	@test -n "$(ID)" || (echo "usage: make session ID=<session-uuid>"; exit 1)
-	@cat .tech-planner/sessions/$(ID).json
+	@cat .planify/sessions/$(ID).json
 
 ## ---------------------------------------------------------------------------
 ## Housekeeping
@@ -129,5 +135,5 @@ clean: ## Remove caches, build output and the agent's scratch workspace
 	@echo "cleaned"
 
 reset: clean ## Also delete every saved planning session
-	@rm -rf .tech-planner
+	@rm -rf .planify
 	@echo "sessions deleted"

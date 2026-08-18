@@ -220,7 +220,7 @@ __marimo__/
 .claude/
 
 # ---------------------------------------------------------------------------
-# tech-planner
+# planify
 # ---------------------------------------------------------------------------
 
 # Real configuration. config/settings.example.py is the tracked template.
@@ -237,7 +237,7 @@ workspace/*
 !workspace/.gitkeep
 
 # Saved planning sessions.
-.tech-planner/
+.planify/
 
 # Node, for the Phase 3 web app.
 node_modules/

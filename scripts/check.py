@@ -14,13 +14,13 @@ import pkgutil
 import sys
 from pathlib import Path
 
-import tech_planner
+import planify
 
 
 def check_imports() -> list[str]:
     """Import every module. Catches cycles and bad wiring that tests would not."""
     failures: list[str] = []
-    for module in pkgutil.walk_packages(tech_planner.__path__, "tech_planner."):
+    for module in pkgutil.walk_packages(planify.__path__, "planify."):
         try:
             importlib.import_module(module.name)
         except Exception as exc:  # noqa: BLE001 - reporting, not handling
@@ -29,7 +29,7 @@ def check_imports() -> list[str]:
 
 
 def check_config(path: Path) -> str:
-    from tech_planner.adapters.driven.config.py_settings import PySettingsProvider
+    from planify.adapters.driven.config.py_settings import PySettingsProvider
 
     settings = PySettingsProvider(path=path).load()
     backend = settings.backend
@@ -46,10 +46,10 @@ def check_gate(path: Path) -> list[str]:
     The single most important property in the system, and the cheapest one to
     verify: it is pure settings resolution, no subprocess involved.
     """
-    from tech_planner.adapters.driven.config.py_settings import PySettingsProvider
-    from tech_planner.adapters.driven.policy.backend_tools import tools_for
-    from tech_planner.adapters.driven.policy.tool_policy import permissions_for
-    from tech_planner.application.events import PassKind
+    from planify.adapters.driven.config.py_settings import PySettingsProvider
+    from planify.adapters.driven.policy.backend_tools import tools_for
+    from planify.adapters.driven.policy.tool_policy import permissions_for
+    from planify.application.events import PassKind
 
     settings = PySettingsProvider(path=path).load()
     mutating = set(tools_for(settings.backend.name).qualified_mutating)
@@ -81,12 +81,12 @@ def check_api(path: Path) -> str:
     """
     import asyncio
 
-    from tech_planner.adapters.driving.http.api import create_app
-    from tech_planner.adapters.driving.http.runs import RunRegistry
-    from tech_planner.adapters.driving.http.serialization import sse
-    from tech_planner.application.events import Notice, ProposalReady
-    from tech_planner.domain.model.plan_proposal import PlanProposal
-    from tech_planner.domain.model.work_item import UserStory
+    from planify.adapters.driving.http.api import create_app
+    from planify.adapters.driving.http.runs import RunRegistry
+    from planify.adapters.driving.http.serialization import sse
+    from planify.application.events import Notice, ProposalReady
+    from planify.domain.model.plan_proposal import PlanProposal
+    from planify.domain.model.work_item import UserStory
 
     app = create_app(path)
     routes = sum(1 for r in app.routes if getattr(r, "methods", None))
