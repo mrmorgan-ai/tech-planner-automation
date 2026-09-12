@@ -70,7 +70,7 @@ pipe — piping hides the exit code and a failing gate then looks green.
 Content flows in one direction for a load and the other for a restore.
 
 ```bash
-npm run seed:validate                             # 21 rules, on every seed file present
+npm run seed:validate                             # every rule, on every seed file present
 npm run seed:sql                                  # -> build/seed.sql (upsert)
 npx wrangler d1 execute planify --file build/seed.sql --remote
 curl -X POST https://<your-domain>/api/reproject  # recompute projections

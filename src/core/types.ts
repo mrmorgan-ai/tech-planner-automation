@@ -90,7 +90,10 @@ export type ScheduleOptions = {
 /** What every API response carries: the world, plus the server's idea of today. */
 export type AppState = {
   today: CivilDate
+  /** Bumped on every write. Lets a second tab notice it is looking at stale data. */
   revision: number
+  /** Which seed the database was loaded from — the answer to "is this the roadmap I just edited?". */
+  seedVersion: string
   roadmap: Roadmap
   items: Item[]
 }

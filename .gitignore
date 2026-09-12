@@ -229,7 +229,7 @@ dist/
 # Wrangler's local state, including the local D1 SQLite file.
 .wrangler/
 
-# Generated seed SQL. seed/items.json is the tracked source of truth.
+# Generated SQL from the seed. Rebuilt with `npm run seed:sql`.
 build/
 
 # Local secrets for `wrangler pages dev`. There are none today; if one appears,
