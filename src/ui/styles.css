@@ -12,7 +12,7 @@
   --warn: #fbbf24;
   --accent: #7c9cf6;
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 15px;
+  font-size: 16px;
 }
 
 * {
@@ -72,7 +72,7 @@ main {
 footer {
   padding: 0.6rem 1.25rem;
   border-top: 1px solid var(--line);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   background: var(--panel);
   position: sticky;
   bottom: 0;
@@ -131,7 +131,7 @@ footer {
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 0.95rem;
   text-align: left;
   cursor: pointer;
 }
@@ -161,7 +161,7 @@ footer {
 
 .phase-progress {
   color: var(--faint);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -188,7 +188,7 @@ footer {
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   cursor: pointer;
 }
 
@@ -203,7 +203,7 @@ footer {
 
 .count {
   color: var(--faint);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -219,7 +219,7 @@ table.items th {
   padding: 0.4rem 0.6rem;
   border-bottom: 1px solid var(--line);
   color: var(--faint);
-  font-size: 0.75rem;
+  font-size: 0.82rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -254,7 +254,7 @@ tr.done a {
   border: 1px solid var(--line);
   border-radius: 4px;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   white-space: nowrap;
 }
 
@@ -264,14 +264,14 @@ tr.done a {
 
 .name-line {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.1rem;
 }
 
 .col-date {
   width: 9.5rem;
   font-variant-numeric: tabular-nums;
-  font-size: 0.88rem;
+  font-size: 0.95rem;
 }
 
 .col-date.late > div:first-child {
@@ -281,7 +281,7 @@ tr.done a {
 .col-price {
   width: 15rem;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 
 select {
@@ -292,26 +292,42 @@ select {
   border: 1px solid var(--line);
   border-radius: 6px;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
 }
 
 select:disabled {
   opacity: 0.5;
 }
 
+/* A bordered square rather than a bare arrow: the control has to look like one
+   before anyone will try it. Sized past the 24px that reads as tappable. */
 .disclosure {
-  width: 1.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  flex: 0 0 auto;
   padding: 0;
-  margin-right: 0.35rem;
-  border: none;
-  background: none;
-  color: var(--faint);
+  margin-right: 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--muted);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
+  line-height: 1;
   cursor: pointer;
 }
 
-.disclosure:hover {
+.disclosure:hover,
+.gantt-phase:hover .disclosure {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.disclosure[aria-expanded='true'] {
+  border-color: var(--accent);
   color: var(--text);
 }
 
@@ -328,12 +344,12 @@ select:disabled {
 .phase-tag {
   margin-left: 0.4rem;
   color: var(--accent);
-  font-size: 0.72rem;
+  font-size: 0.8rem;
 }
 
 .planned {
   color: var(--warn);
-  font-size: 0.74rem;
+  font-size: 0.82rem;
   margin-top: 0.15rem;
 }
 
@@ -349,7 +365,7 @@ tr.detail td {
   display: flex;
   gap: 0.7rem;
   margin-top: 0.4rem;
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   line-height: 1.45;
 }
 
@@ -357,7 +373,7 @@ tr.detail td {
   flex: 0 0 6.5rem;
   color: var(--faint);
   text-transform: uppercase;
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   letter-spacing: 0.04em;
   padding-top: 0.15rem;
 }
@@ -375,7 +391,7 @@ tr.detail td {
   border: 1px solid var(--line);
   border-radius: 4px;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.82rem;
 }
 
 .notes {
@@ -419,7 +435,7 @@ tr.detail td {
   padding: 0 0.15rem 0.4rem;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -427,7 +443,7 @@ tr.detail td {
 .column-empty {
   margin: 0.3rem 0.15rem;
   color: var(--faint);
-  font-size: 0.82rem;
+  font-size: 0.88rem;
 }
 
 .card {
@@ -447,6 +463,8 @@ tr.detail td {
   cursor: progress;
 }
 
+/* The card is wide, so the meta line uses that width: type on the left, date
+   pushed to the right edge, and the name gets the row below to itself. */
 .card-head {
   display: flex;
   align-items: baseline;
@@ -455,20 +473,311 @@ tr.detail td {
 }
 
 .card-name {
-  font-size: 0.88rem;
+  font-size: 1rem;
   line-height: 1.35;
 }
 
 .card-date {
-  margin-top: 0.3rem;
+  margin-left: auto;
   color: var(--faint);
-  font-size: 0.76rem;
+  font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
 }
 
 .card-note {
   margin-top: 0.3rem;
   color: var(--warn);
-  font-size: 0.74rem;
+  font-size: 0.82rem;
   line-height: 1.35;
+}
+
+/* Dashboard */
+
+.dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.block {
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.block h2 {
+  margin: 0 0 0.8rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.6rem;
+}
+
+.stat {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.stat.wide {
+  grid-column: span 2;
+}
+
+.stat-label {
+  color: var(--faint);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-value {
+  margin: 0.15rem 0;
+  font-size: 1.45rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.phase-bars {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.6rem;
+}
+
+.phase-row {
+  display: grid;
+  grid-template-columns: 1.2rem minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  font-size: 0.95rem;
+}
+
+.task-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.95rem;
+}
+
+.task-list li:last-child {
+  border-bottom: none;
+}
+
+.task-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-date {
+  color: var(--faint);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.see-all {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: var(--accent);
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.radar {
+  display: block;
+  width: 100%;
+  max-width: 17rem;
+  margin: 0 auto;
+  overflow: visible;
+}
+
+.radar-ring {
+  fill: none;
+  stroke: var(--line);
+}
+
+.radar-spoke {
+  stroke: var(--line);
+}
+
+.radar-area {
+  fill: rgb(124 156 246 / 0.28);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.radar-dot {
+  fill: var(--accent);
+}
+
+.radar-label {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
+.axis-list {
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.axis-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.18rem 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.skill.covered {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.block .skills {
+  margin-left: 0;
+}
+
+/* Gantt */
+
+.gantt-legend {
+  margin: 0 0 0.8rem;
+  font-size: 0.88rem;
+}
+
+.gantt-grid {
+  display: grid;
+  grid-template-columns: 21rem minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.gantt-head {
+  position: relative;
+  height: 1.4rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.gantt-mark {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  color: var(--faint);
+  font-size: 0.8rem;
+}
+
+.gantt-body {
+  position: relative;
+}
+
+.gantt-row {
+  position: relative;
+  height: 1.9rem;
+}
+
+.gantt-group + .gantt-group {
+  border-top: 1px solid var(--line);
+}
+
+.gantt-phase .disclosure {
+  margin-right: 0;
+}
+
+.gantt-phase {
+  display: grid;
+  grid-template-columns: 1.7rem 1.1rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  height: 1.9rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gantt-item-label {
+  height: 1.9rem;
+  padding-left: 2.5rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gantt-blackout {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgb(255 255 255 / 0.04);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+
+.gantt-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px solid var(--warn);
+}
+
+.gantt-ghost {
+  position: absolute;
+  top: 0.35rem;
+  height: 0.85rem;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.07);
+}
+
+.gantt-bar {
+  position: absolute;
+  top: 0.5rem;
+  height: 0.55rem;
+  border-radius: 3px;
+  background: var(--faint);
+}
+
+.gantt-bar.phase {
+  background: var(--accent);
+}
+
+.gantt-bar.running {
+  background: var(--accent);
+}
+
+.gantt-bar.done {
+  background: var(--good);
+}
+
+.gantt-bar.late {
+  background: var(--bad);
 }

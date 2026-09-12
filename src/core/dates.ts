@@ -129,3 +129,13 @@ export function toCivilDate(instant: IsoDateTime | Date, timeZone: string): Civi
   if (Number.isNaN(date.getTime())) throw new Error(`Not an instant: ${String(instant)}`)
   return civilDateFormatter(timeZone).format(date)
 }
+
+/**
+ * The Monday of the week a date falls in. Weeks are the unit the streak counts
+ * in, and Monday is where a study week starts for the roadmap's owner.
+ */
+export function startOfWeek(date: CivilDate): CivilDate {
+  const day = toEpochDay(date)
+  // Epoch day 0 is a Thursday, so +3 puts Monday at a multiple of 7.
+  return fromEpochDay(day - ((day + 3) % 7))
+}

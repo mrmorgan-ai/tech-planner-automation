@@ -133,13 +133,12 @@ function Card({
       <div className="card-head">
         <span className="type-tag">{item.type}</span>
         {showPhase && <span className="phase-tag">phase {item.phase}</span>}
+        <span className={late ? 'card-date bad' : 'card-date'}>
+          {item.state === 'done' ? 'ended' : 'ends'} {item.projectedEndDate}
+        </span>
       </div>
 
       <div className="card-name">{item.name}</div>
-
-      <div className={late ? 'card-date bad' : 'card-date'}>
-        {item.state === 'done' ? 'ended' : 'ends'} {item.projectedEndDate}
-      </div>
 
       {blockers.length > 0 && (
         <div className="card-note" title={blockers.map((blocker) => blocker.name).join('\n')}>

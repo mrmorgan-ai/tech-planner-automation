@@ -6,6 +6,7 @@ import {
   firstStudyDayFrom,
   fromEpochDay,
   isBlackoutDay,
+  startOfWeek,
   studyDayAfter,
   studyDaysBetween,
   toCivilDate,
@@ -108,5 +109,20 @@ describe('toCivilDate', () => {
 
   it('reads UTC as UTC', () => {
     expect(toCivilDate('2030-01-09T03:00:00Z', 'UTC')).toBe('2030-01-09')
+  })
+})
+
+describe('startOfWeek', () => {
+  it('returns the Monday of that week', () => {
+    // 2030-02-06 is a Wednesday; its week starts on Monday 2030-02-04.
+    expect(startOfWeek('2030-02-06')).toBe('2030-02-04')
+  })
+
+  it('leaves a Monday where it is', () => {
+    expect(startOfWeek('2030-02-04')).toBe('2030-02-04')
+  })
+
+  it('keeps Sunday in the week that started six days earlier', () => {
+    expect(startOfWeek('2030-02-10')).toBe('2030-02-04')
   })
 })

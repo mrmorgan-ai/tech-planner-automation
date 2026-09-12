@@ -1,5 +1,7 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { Backlog } from './Backlog'
+import { Dashboard } from './Dashboard'
+import { Gantt } from './Gantt'
 import { Kanban } from './Kanban'
 import { useAppState } from './useAppState'
 
@@ -40,12 +42,11 @@ export function App() {
         {!state && !error && <p className="empty">Loading the roadmap…</p>}
         {state && (
           <Routes>
-            <Route path="/" element={<Navigate to="/backlog" replace />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard state={state} />} />
+            <Route path="/gantt" element={<Gantt state={state} />} />
             <Route path="/backlog" element={<Backlog {...store} state={state} />} />
             <Route path="/kanban" element={<Kanban {...store} state={state} />} />
-            {VIEWS.filter((view) => view.path !== '/backlog' && view.path !== '/kanban').map((view) => (
-              <Route key={view.path} path={view.path} element={<Placeholder view={view.label} />} />
-            ))}
             <Route path="*" element={<Placeholder view="Not found" />} />
           </Routes>
         )}
