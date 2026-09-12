@@ -94,6 +94,8 @@ ON CONFLICT(name) DO UPDATE SET dimension = excluded.dimension;`)
 // the content.
 const meta = {
   time_zone: seed.timeZone,
+  weekly_hours_normal: seed.weeklyHours ? String(seed.weeklyHours.normal) : '',
+  weekly_hours_last_week: seed.weeklyHours ? String(seed.weeklyHours.lastWeekOfMonth) : '',
   // The anchor the plan starts on. Taken from the file when it declares one,
   // otherwise the earliest baseline start — which is what it means anyway.
   start_date:

@@ -1,3 +1,10 @@
+/** Study hours available per week. Roadmap content: capacity is personal. */
+export type WeeklyHours = {
+  normal: number
+  /** The last week of each month, where time is reserved for something else. */
+  lastWeekOfMonth: number
+}
+
 /** A civil date, `YYYY-MM-DD`. No time, no timezone — see dates.ts. */
 export type CivilDate = string
 
@@ -50,7 +57,10 @@ export type Item = {
   price: string
   link: string | null
   resources: Resource[]
-  /** How long it takes, as written: "~25h, 7 videos". Free text, never parsed. */
+  /**
+   * How long it takes, as written: "~25h, 7 videos". The text is what is stored;
+   * `estimatedHours` in hours.ts reads a number out of it when there is one.
+   */
   duration: string
   /** A plain description of what the item is. No durations, no links. */
   notes: string
@@ -91,6 +101,8 @@ export type Roadmap = {
    * past in silence. Empty means no floor is configured.
    */
   startDate: CivilDate | ''
+  /** Study capacity per week, used to size the board's weekly scope. */
+  weeklyHours: WeeklyHours
   phases: Phase[]
   blackouts: Blackout[]
   dimensions: Dimension[]

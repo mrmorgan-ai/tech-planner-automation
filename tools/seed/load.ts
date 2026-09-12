@@ -10,6 +10,7 @@ import type {
   Phase,
   PhaseNumber,
   Resource,
+  WeeklyHours,
 } from '../../src/core/types'
 
 /**
@@ -31,6 +32,8 @@ export type SeedFile = {
   timeZone: string
   /** The anchor the plan starts on. Optional in the file; derived when absent. */
   startDate?: CivilDate
+  /** Study hours per week. Optional; without it the board shows no capacity. */
+  weeklyHours?: WeeklyHours
   phases: Phase[]
   blackouts: Blackout[]
   dimensions: Dimension[]
@@ -78,6 +81,7 @@ export function readSeedFile(path: URL): SeedFile {
 
   return {
     timeZone: requireString(file.timeZone, 'timeZone'),
+    weeklyHours: parseWeeklyHours(file.weeklyHours),
     phases: requireArray(file.phases, 'phases').map((entry, index) => parsePhase(entry, index)),
     blackouts: requireArray(file.blackouts, 'blackouts').map((entry, index) =>
       parseBlackout(entry, index),
@@ -188,6 +192,23 @@ function parseSeedItem(entry: unknown, index: number): SeedItem {
     notes: requireString(value.notes, `${where}.notes`, true),
     sortOrder,
   }
+}
+
+/** Absent reads as no declared capacity, which the board renders as unknown. */
+function parseWeeklyHours(value: unknown): WeeklyHours | undefined {
+  if (value === undefined) return undefined
+  const hours = requireObject(value, 'weeklyHours')
+  return {
+    normal: requirePositive(hours.normal, 'weeklyHours.normal'),
+    lastWeekOfMonth: requirePositive(hours.lastWeekOfMonth, 'weeklyHours.lastWeekOfMonth'),
+  }
+}
+
+function requirePositive(value: unknown, at: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw new Error(`${at} must be a number above zero`)
+  }
+  return value
 }
 
 /** Extra links, each a label and a URL. Absent reads as none, not as an error. */
