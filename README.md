@@ -46,7 +46,21 @@ The core takes its calendar as an argument — `{ blackouts, timeZone }` — and
 never reads a global. That is the same rule seen from the inside: content comes
 from the database, not from this repository.
 
+## The four views
+
+| View | What it is for |
+|---|---|
+| Dashboard | streak, overdue count, next milestone and pace, plus the skills radar |
+| Backlog | the detail view: one phase at a time, with state, dates, topics and price |
+| Kanban | the day-to-day board — drag between three columns, no limits, no blocking |
+| Gantt | read-only: the original plan as a faint bar under the current projection |
+
+Backlog and Kanban write the same `state` field. Neither is a separate system,
+and the Gantt only reflects what those two set.
+
 ## Running it locally
+
+First time:
 
 ```bash
 npm install
@@ -55,12 +69,19 @@ npm run seed:validate
 npm run seed:sql
 npm run db:migrate:local
 npx wrangler d1 execute planify --local --file build/seed.sql
-npm run dev:api                                   # Workers runtime + local D1 on 8788
-npm run dev                                       # the web app on 5173, in another terminal
 ```
 
-`http://127.0.0.1:5173` should show the nav with a green line at the bottom
-reporting today's date and the item count in D1.
+After that:
+
+```bash
+make start                                        # both processes, then waits until they answer
+make stop
+```
+
+`make start` refuses to start if either port is taken and names what is holding
+it, rather than racing whatever is already there. The app is on
+`http://127.0.0.1:5173` and the API on `8788`; the footer reports today's date
+and how many items came back from D1.
 
 Checks: `npm run typecheck` · `npm test` · `npm run build`. Run them without a
 pipe — piping hides the exit code and a failing gate then looks green.
