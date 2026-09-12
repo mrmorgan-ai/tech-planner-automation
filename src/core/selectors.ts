@@ -1,5 +1,5 @@
 import { toEpochDay } from './dates'
-import type { CivilDate, Item, Phase } from './types'
+import type { CivilDate, Item, Phase, State } from './types'
 
 // Derived reads over the item list. Pure and platform-neutral, so the backlog,
 // the board and the dashboard all answer the same question the same way — and
@@ -76,4 +76,33 @@ export function phaseProgress(
     done: inPhase.filter((item) => item.state === 'done').length,
     total: inPhase.length,
   }
+}
+
+/** The three board columns, in the order they are shown. */
+export const BOARD_COLUMNS: readonly State[] = ['pending', 'in_progress', 'done'] as const
+
+/**
+ * Items split by state, each column in the curated order. The board never
+ * persists a position inside a column, so phase and sortOrder decide it.
+ */
+export function groupByState(items: readonly Item[]): Record<State, Item[]> {
+  const columns: Record<State, Item[]> = { pending: [], in_progress: [], done: [] }
+  for (const item of items) columns[item.state].push(item)
+  for (const state of BOARD_COLUMNS) {
+    columns[state].sort((a, b) => a.phase - b.phase || a.sortOrder - b.sortOrder)
+  }
+  return columns
+}
+
+/**
+ * The dependencies of an item that are not done yet. Shown on a card as a note
+ * and never as a lock (spec section 6): the board informs, it never blocks.
+ * Only the unfinished ones, because a satisfied dependency is not information.
+ */
+export function unfinishedDependencies(item: Item, items: readonly Item[]): Item[] {
+  const byId = new Map(items.map((candidate) => [candidate.id, candidate]))
+  return item.dependsOn
+    .map((id) => byId.get(id))
+    .filter((dependency): dependency is Item => dependency !== undefined)
+    .filter((dependency) => dependency.state !== 'done')
 }

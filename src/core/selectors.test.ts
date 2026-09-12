@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   groupByPhase,
+  groupByState,
   hasSlipped,
   isOverdue,
   matchesFilter,
   phaseProgress,
   slipDays,
+  unfinishedDependencies,
 } from './selectors'
 import type { Item, Phase } from './types'
 
@@ -121,5 +123,68 @@ describe('phaseProgress', () => {
       item('c', { phase: 2, state: 'done', completedAt: '2030-02-01T00:00:00Z' }),
     ]
     expect(phaseProgress(items, phases[0] as Phase)).toEqual({ done: 1, total: 2 })
+  })
+})
+
+describe('groupByState', () => {
+  it('puts every item in the column of its state', () => {
+    const items = [
+      item('a'),
+      item('b', { state: 'in_progress' }),
+      item('c', { state: 'done', completedAt: '2030-02-10T10:00:00Z' }),
+      item('d', { state: 'in_progress' }),
+    ]
+
+    const columns = groupByState(items)
+
+    expect(columns.pending.map((entry) => entry.id)).toEqual(['a'])
+    expect(columns.in_progress.map((entry) => entry.id)).toEqual(['b', 'd'])
+    expect(columns.done.map((entry) => entry.id)).toEqual(['c'])
+  })
+
+  it('orders each column by phase and then by the curated order', () => {
+    const items = [
+      item('late-in-one', { phase: 1, sortOrder: 9 }),
+      item('first-in-two', { phase: 2, sortOrder: 1 }),
+      item('first-in-one', { phase: 1, sortOrder: 1 }),
+    ]
+
+    expect(groupByState(items).pending.map((entry) => entry.id)).toEqual([
+      'first-in-one',
+      'late-in-one',
+      'first-in-two',
+    ])
+  })
+
+  it('returns the three columns even when everything is in one', () => {
+    const columns = groupByState([item('a'), item('b')])
+
+    expect(columns.in_progress).toEqual([])
+    expect(columns.done).toEqual([])
+  })
+})
+
+describe('unfinishedDependencies', () => {
+  const done = item('done-one', { state: 'done', completedAt: '2030-02-10T10:00:00Z' })
+  const open = item('open-one')
+
+  it('lists only the dependencies that are not done', () => {
+    const target = item('target', { dependsOn: ['done-one', 'open-one'] })
+
+    expect(unfinishedDependencies(target, [done, open, target]).map((entry) => entry.id)).toEqual([
+      'open-one',
+    ])
+  })
+
+  it('is empty when every dependency is done', () => {
+    const target = item('target', { dependsOn: ['done-one'] })
+
+    expect(unfinishedDependencies(target, [done, target])).toEqual([])
+  })
+
+  it('ignores an id that is not in the roadmap instead of throwing', () => {
+    const target = item('target', { dependsOn: ['ghost'] })
+
+    expect(unfinishedDependencies(target, [target])).toEqual([])
   })
 })

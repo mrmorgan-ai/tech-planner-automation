@@ -386,3 +386,89 @@ tr.detail td {
 .depends {
   color: var(--muted);
 }
+
+/* Board */
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 12rem;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.column.over {
+  border-color: var(--accent);
+  background: var(--raised);
+}
+
+.column-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 0.15rem 0.4rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.column-empty {
+  margin: 0.3rem 0.15rem;
+  color: var(--faint);
+  font-size: 0.82rem;
+}
+
+.card {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: grab;
+}
+
+.card:active {
+  cursor: grabbing;
+}
+
+.card.busy {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+
+.card-name {
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.card-date {
+  margin-top: 0.3rem;
+  color: var(--faint);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-note {
+  margin-top: 0.3rem;
+  color: var(--warn);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}

@@ -1,5 +1,6 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { Backlog } from './Backlog'
+import { Kanban } from './Kanban'
 import { useAppState } from './useAppState'
 
 const VIEWS = [
@@ -41,7 +42,8 @@ export function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/backlog" replace />} />
             <Route path="/backlog" element={<Backlog {...store} state={state} />} />
-            {VIEWS.filter((view) => view.path !== '/backlog').map((view) => (
+            <Route path="/kanban" element={<Kanban {...store} state={state} />} />
+            {VIEWS.filter((view) => view.path !== '/backlog' && view.path !== '/kanban').map((view) => (
               <Route key={view.path} path={view.path} element={<Placeholder view={view.label} />} />
             ))}
             <Route path="*" element={<Placeholder view="Not found" />} />

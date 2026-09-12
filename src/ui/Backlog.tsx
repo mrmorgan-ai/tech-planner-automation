@@ -4,12 +4,12 @@ import {
   hasSlipped,
   isOverdue,
   matchesFilter,
-  phaseProgress,
   slipDays,
   ITEM_FILTERS,
   type ItemFilter,
 } from '../core/selectors'
-import type { AppState, Item, PhaseNumber, State } from '../core/types'
+import type { AppState, Item, State } from '../core/types'
+import { PhaseSidebar, type PhaseSelection } from './PhaseSidebar'
 import type { Store } from './useAppState'
 
 const STATE_LABEL: Record<State, string> = {
@@ -25,9 +25,6 @@ const FILTER_LABEL: Record<ItemFilter, string> = {
   overdue: 'Overdue',
   done: 'Done',
 }
-
-/** `null` is the entry that ignores phases — the one place a filter spans the whole roadmap. */
-type PhaseSelection = PhaseNumber | null
 
 /**
  * The detail view, and the surface the rest hangs off: the Gantt only reflects
@@ -52,36 +49,12 @@ export function Backlog({ state, pendingId, changeState }: Store & { state: AppS
 
   return (
     <section className="backlog">
-      <aside className="phases">
-        {state.roadmap.phases.map((entry) => {
-          const progress = phaseProgress(state.items, entry)
-          return (
-            <button
-              key={entry.number}
-              type="button"
-              className={phase === entry.number ? 'phase-link active' : 'phase-link'}
-              onClick={() => setPhase(entry.number)}
-            >
-              <span className="phase-index">{entry.number}</span>
-              <span className="phase-name">{entry.name}</span>
-              <span className="phase-progress">
-                {progress.done}/{progress.total}
-              </span>
-            </button>
-          )
-        })}
-        <button
-          type="button"
-          className={phase === null ? 'phase-link active' : 'phase-link'}
-          onClick={() => setPhase(null)}
-        >
-          <span className="phase-index">·</span>
-          <span className="phase-name">All phases</span>
-          <span className="phase-progress">
-            {state.items.filter((item) => item.state === 'done').length}/{state.items.length}
-          </span>
-        </button>
-      </aside>
+      <PhaseSidebar
+        phases={state.roadmap.phases}
+        items={state.items}
+        selected={phase}
+        onSelect={setPhase}
+      />
 
       <div className="items-pane">
         <div className="filters">
