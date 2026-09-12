@@ -1,0 +1,91 @@
+{
+  "timeZone": "UTC",
+  "expectedItemsPerPhase": { "1": 3, "2": 2 },
+  "phases": [
+    { "number": 1, "name": "First phase", "closingMilestoneId": "phase-1-exam" },
+    { "number": 2, "name": "Second phase", "closingMilestoneId": null }
+  ],
+  "blackouts": [{ "from": "2030-01-15", "to": "2030-01-28", "reason": "Planned pause" }],
+  "phaseWindows": {
+    "1": { "from": "2030-01-01", "to": "2030-02-10" },
+    "2": { "from": "2030-02-11", "to": null }
+  },
+  "milestoneDependencyExceptions": {},
+  "dimensions": ["First axis", "Second axis"],
+  "skills": {
+    "Something measurable": "First axis",
+    "Something else": "Second axis"
+  },
+  "items": [
+    {
+      "id": "read-the-thing",
+      "name": "Read the thing",
+      "type": "Book",
+      "phase": 1,
+      "skills": ["Something measurable"],
+      "baselineStartDate": "2030-01-01",
+      "baselineEndDate": "2030-01-07",
+      "dependsOn": [],
+      "price": "",
+      "link": "https://example.com/the-thing",
+      "notes": "What exactly to read, not just a link.",
+      "sortOrder": 1
+    },
+    {
+      "id": "build-the-thing",
+      "name": "Build the thing",
+      "type": "Project",
+      "phase": 1,
+      "skills": ["Something else"],
+      "baselineStartDate": "2030-01-08",
+      "baselineEndDate": "2030-01-31",
+      "dependsOn": ["read-the-thing"],
+      "price": "",
+      "link": null,
+      "notes": "Straddles the planned pause: 7 study days before it, 3 after. The pause costs no duration, and the Gantt paints it as a gap rather than a slip.",
+      "sortOrder": 2
+    },
+    {
+      "id": "phase-1-exam",
+      "name": "The exam that closes phase 1",
+      "type": "Certification",
+      "phase": 1,
+      "skills": ["Something measurable", "Something else"],
+      "baselineStartDate": "2030-02-01",
+      "baselineEndDate": "2030-02-04",
+      "dependsOn": ["read-the-thing", "build-the-thing"],
+      "price": "$100 USD · 90 min",
+      "link": "https://example.com/exam",
+      "notes": "Starts the day after the last thing it waits on ends — that is what keeps the plan from being born already slipped.",
+      "sortOrder": 3
+    },
+    {
+      "id": "the-next-thing",
+      "name": "Something in the next phase",
+      "type": "Course",
+      "phase": 2,
+      "skills": ["Something measurable"],
+      "baselineStartDate": "2030-02-11",
+      "baselineEndDate": "2030-02-17",
+      "dependsOn": ["phase-1-exam"],
+      "price": "Free",
+      "link": "https://example.com/course",
+      "notes": "Gated behind phase 1's closing milestone — a slip there moves this.",
+      "sortOrder": 1
+    },
+    {
+      "id": "the-optional-thing",
+      "name": "Something optional",
+      "type": "Documentation",
+      "phase": 2,
+      "skills": ["Something else"],
+      "baselineStartDate": "2030-02-18",
+      "baselineEndDate": "2030-02-24",
+      "dependsOn": ["the-next-thing"],
+      "price": "",
+      "link": null,
+      "notes": "Phase 2 closes on nothing, so no milestone waits on this.",
+      "sortOrder": 2
+    }
+  ]
+}
