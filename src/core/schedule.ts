@@ -149,6 +149,32 @@ export function applyStateChange(
   return recomputeProjections(updated, options)
 }
 
+/**
+ * Moves one item's baseline, then recomputes every projection from it.
+ *
+ * The baseline is the plan, so editing it is what makes the rest of the roadmap
+ * follow: anything that depends on this item picks up the new end date through
+ * the same rule as always, max(own baseline, dependency end + 1 study day). An
+ * item that depends on nothing keeps its own dates, because nothing about its
+ * plan changed.
+ */
+export function applyBaselineDates(
+  items: readonly Item[],
+  id: string,
+  start: CivilDate,
+  end: CivilDate,
+  options: ScheduleOptions,
+): Item[] {
+  if (!items.some((item) => item.id === id)) throw new Error(`No item with id ${id}`)
+  if (end < start) throw new Error(`End ${end} is before start ${start}`)
+
+  const updated = items.map((item) =>
+    item.id === id ? { ...item, baselineStartDate: start, baselineEndDate: end } : item,
+  )
+
+  return recomputeProjections(updated, options)
+}
+
 type Rank = readonly [number, number, string]
 
 function rank(item: Item): Rank {

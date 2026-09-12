@@ -1,4 +1,4 @@
-import type { AppState, State } from '../core/types'
+import type { AppState, CivilDate, State } from '../core/types'
 
 /**
  * Every call answers with the whole world, so the client replaces its state
@@ -25,5 +25,18 @@ export function setItemState(id: string, state: State): Promise<AppState> {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ state }),
+  })
+}
+
+/** Moves an item's plan. The server recomputes every projection and returns it. */
+export function setItemDates(
+  id: string,
+  baselineStartDate: CivilDate,
+  baselineEndDate: CivilDate,
+): Promise<AppState> {
+  return call(`/api/items/${encodeURIComponent(id)}/dates`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ baselineStartDate, baselineEndDate }),
   })
 }

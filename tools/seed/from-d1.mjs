@@ -40,6 +40,7 @@ const parseJson = (value, fallback) => {
 
 const roadmap = {
   timeZone: meta.time_zone ?? 'UTC',
+  startDate: meta.start_date || undefined,
   expectedItemsPerPhase: parseJson(meta.expected_items_per_phase, {}),
   phases: query('SELECT number, name, closing_milestone_id FROM phases ORDER BY number').map(
     (row) => ({
@@ -65,7 +66,7 @@ const roadmap = {
   ),
   items: query(
     `SELECT id, name, type, phase, skills, depends_on, baseline_start, baseline_end,
-            price, link, notes, sort_order
+            price, link, resources, duration, notes, sort_order
      FROM items ORDER BY phase, sort_order`,
   ).map((row) => ({
     id: row.id,
@@ -78,6 +79,8 @@ const roadmap = {
     dependsOn: JSON.parse(row.depends_on),
     price: row.price,
     link: row.link ?? null,
+    resources: JSON.parse(row.resources === '' ? '[]' : row.resources),
+    duration: row.duration,
     notes: row.notes,
     sortOrder: row.sort_order,
   })),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyStateChange, recomputeProjections, topologicalOrder } from './schedule'
+import { applyBaselineDates, applyStateChange, recomputeProjections, topologicalOrder } from './schedule'
 import type { Blackout, Item, ScheduleOptions } from './types'
 
 // A synthetic calendar and timezone: the real ones are roadmap content and live
@@ -21,6 +21,8 @@ function item(id: string, overrides: Partial<Item> = {}): Item {
     dependsOn: [],
     price: '',
     link: null,
+    resources: [],
+    duration: '',
     notes: '',
     state: 'pending',
     completedAt: null,
@@ -228,5 +230,77 @@ describe('graph validation', () => {
   it('orders dependencies before dependents', () => {
     const ordered = topologicalOrder(chain().slice().reverse()).map((candidate) => candidate.id)
     expect(ordered).toEqual(['a', 'b', 'c', 'd'])
+  })
+})
+
+describe('applyBaselineDates', () => {
+  // Dates deliberately before the fixture's break (2030-01-15 to 01-28), so
+  // these cases measure the handoff and nothing else. The break has its own
+  // case at the end.
+  const chain = [
+    item('first', { baselineStartDate: '2030-01-07', baselineEndDate: '2030-01-08', sortOrder: 1 }),
+    item('second', {
+      baselineStartDate: '2030-01-09',
+      baselineEndDate: '2030-01-11',
+      dependsOn: ['first'],
+      sortOrder: 2,
+    }),
+  ]
+
+  it('writes the new baseline on the item it names', () => {
+    const after = applyBaselineDates(chain, 'first', '2030-01-07', '2030-01-10', OPTIONS)
+
+    const first = after.find((entry) => entry.id === 'first')!
+    expect([first.baselineStartDate, first.baselineEndDate]).toEqual(['2030-01-07', '2030-01-10'])
+  })
+
+  it('pushes what depends on it to the next study day', () => {
+    const after = applyBaselineDates(chain, 'first', '2030-01-07', '2030-01-10', OPTIONS)
+
+    const second = after.find((entry) => entry.id === 'second')!
+    expect(second.projectedStartDate).toBe('2030-01-11')
+    // The dependent's own plan did not change, only its projection.
+    expect(second.baselineStartDate).toBe('2030-01-09')
+  })
+
+  it('leaves an item that depends on nothing where it was', () => {
+    const loose = [
+      ...chain,
+      item('loose', {
+        baselineStartDate: '2030-01-09',
+        baselineEndDate: '2030-01-10',
+        sortOrder: 3,
+      }),
+    ]
+
+    const after = applyBaselineDates(loose, 'first', '2030-01-07', '2030-01-10', OPTIONS)
+
+    const untouched = after.find((entry) => entry.id === 'loose')!
+    expect(untouched.projectedStartDate).toBe('2030-01-09')
+  })
+
+  it('pulls a dependent back when the baseline shrinks again', () => {
+    const stretched = applyBaselineDates(chain, 'first', '2030-01-07', '2030-01-10', OPTIONS)
+    const shrunk = applyBaselineDates(stretched, 'first', '2030-01-07', '2030-01-08', OPTIONS)
+
+    expect(shrunk.find((entry) => entry.id === 'second')!.projectedStartDate).toBe('2030-01-09')
+  })
+
+  it('hands off across a non-study period instead of into it', () => {
+    const after = applyBaselineDates(chain, 'first', '2030-01-07', '2030-01-14', OPTIONS)
+
+    expect(after.find((entry) => entry.id === 'second')!.projectedStartDate).toBe('2030-01-29')
+  })
+
+  it('refuses an end before the start', () => {
+    expect(() => applyBaselineDates(chain, 'first', '2030-01-11', '2030-01-07', OPTIONS)).toThrow(
+      /before start/,
+    )
+  })
+
+  it('refuses an id that is not in the roadmap', () => {
+    expect(() => applyBaselineDates(chain, 'ghost', '2030-01-07', '2030-01-11', OPTIONS)).toThrow(
+      /No item with id/,
+    )
   })
 })

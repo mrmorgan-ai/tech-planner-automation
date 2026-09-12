@@ -6,6 +6,7 @@ import type {
   ItemType,
   Phase,
   PhaseNumber,
+  Resource,
   State,
 } from '../core/types'
 
@@ -25,6 +26,8 @@ export type ItemRow = {
   projected_end: string
   price: string
   link: string | null
+  resources: string
+  duration: string
   notes: string
   state: string
   completed_at: string | null
@@ -61,6 +64,8 @@ export function toItem(row: ItemRow): Item {
     projectedEndDate: row.projected_end,
     price: row.price,
     link: row.link === null || row.link === '' ? null : row.link,
+    resources: parseResources(row.resources, `${row.id}.resources`),
+    duration: row.duration,
     notes: row.notes,
     state: row.state as State,
     completedAt: row.completed_at,
@@ -108,9 +113,28 @@ export function changedItems(before: readonly Item[], after: readonly Item[]): I
     return (
       old.state !== item.state ||
       old.completedAt !== item.completedAt ||
+      old.baselineStartDate !== item.baselineStartDate ||
+      old.baselineEndDate !== item.baselineEndDate ||
       old.projectedStartDate !== item.projectedStartDate ||
       old.projectedEndDate !== item.projectedEndDate
     )
+  })
+}
+
+function parseResources(raw: string, at: string): Resource[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw === '' ? '[]' : raw)
+  } catch {
+    throw new Error(`${at} is not valid JSON: ${raw}`)
+  }
+  if (!Array.isArray(parsed)) throw new Error(`${at} must be a JSON array`)
+  return parsed.map((entry) => {
+    const resource = entry as { label?: unknown; url?: unknown }
+    if (typeof resource.label !== 'string' || typeof resource.url !== 'string') {
+      throw new Error(`${at} entries must each have a string label and url`)
+    }
+    return { label: resource.label, url: resource.url }
   })
 }
 

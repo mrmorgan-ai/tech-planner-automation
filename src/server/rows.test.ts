@@ -16,6 +16,8 @@ function row(overrides: Partial<ItemRow> = {}): ItemRow {
     projected_end: '2030-01-07',
     price: '',
     link: null,
+    resources: '[]',
+    duration: '',
     notes: '',
     state: 'pending',
     completed_at: null,
@@ -98,5 +100,25 @@ describe('changedItems', () => {
   it('treats an item the previous state did not have as changed', () => {
     const added: Item = { ...base, id: 'brand-new' }
     expect(changedItems([base], [base, added]).map((item) => item.id)).toEqual(['brand-new'])
+  })
+})
+
+describe('resources', () => {
+  it('maps a JSON array of label and url', () => {
+    const item = toItem(row({ resources: '[{"label":"Code","url":"https://example.com/repo"}]' }))
+
+    expect(item.resources).toEqual([{ label: 'Code', url: 'https://example.com/repo' }])
+  })
+
+  it('reads an empty column as no resources rather than throwing', () => {
+    expect(toItem(row({ resources: '' })).resources).toEqual([])
+  })
+
+  it('refuses an entry missing its url', () => {
+    expect(() => toItem(row({ resources: '[{"label":"Code"}]' }))).toThrow(/label and url/)
+  })
+
+  it('refuses a column that is not JSON', () => {
+    expect(() => toItem(row({ resources: 'not json' }))).toThrow(/not valid JSON/)
   })
 })

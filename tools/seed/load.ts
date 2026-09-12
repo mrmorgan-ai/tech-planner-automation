@@ -9,6 +9,7 @@ import type {
   ItemType,
   Phase,
   PhaseNumber,
+  Resource,
 } from '../../src/core/types'
 
 /**
@@ -28,6 +29,8 @@ export type PhaseWindow = { from: CivilDate; to: CivilDate | null }
  */
 export type SeedFile = {
   timeZone: string
+  /** The anchor the plan starts on. Optional in the file; derived when absent. */
+  startDate?: CivilDate
   phases: Phase[]
   blackouts: Blackout[]
   dimensions: Dimension[]
@@ -180,9 +183,23 @@ function parseSeedItem(entry: unknown, index: number): SeedItem {
     dependsOn: requireStringArray(value.dependsOn, `${where}.dependsOn`, true),
     price: requireString(value.price, `${where}.price`, true),
     link: link ?? null,
+    resources: parseResources(value.resources, `${where}.resources`),
+    duration: requireString(value.duration ?? '', `${where}.duration`, true),
     notes: requireString(value.notes, `${where}.notes`, true),
     sortOrder,
   }
+}
+
+/** Extra links, each a label and a URL. Absent reads as none, not as an error. */
+function parseResources(value: unknown, at: string): Resource[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) throw new Error(`${at} must be an array`)
+  return value.map((entry, index) => {
+    const resource = requireObject(entry, `${at}[${index}]`)
+    const url = requireString(resource.url, `${at}[${index}].url`)
+    if (!/^https?:\/\//.test(url)) throw new Error(`${at}[${index}].url must be http(s)`)
+    return { label: requireString(resource.label, `${at}[${index}].label`), url }
+  })
 }
 
 function requireObject(value: unknown, at: string): Record<string, unknown> {

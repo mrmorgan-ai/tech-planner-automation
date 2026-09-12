@@ -30,16 +30,21 @@ const json = (value) => text(JSON.stringify(value))
 const statements = []
 
 for (const item of seed.items) {
+  // baseline_start and baseline_end are inserted but never updated. They are
+  // editable in the app now, so a seed reload overwriting them would throw away
+  // a deliberate change with no warning — the same reason state, completed_at
+  // and the projected dates are left alone.
   statements.push(`INSERT INTO items (
   id, name, type, phase, skills, depends_on,
   baseline_start, baseline_end, projected_start, projected_end,
-  price, link, notes, sort_order
+  price, link, resources, duration, notes, sort_order
 ) VALUES (
   ${text(item.id)}, ${text(item.name)}, ${text(item.type)}, ${item.phase},
   ${json(item.skills)}, ${json(item.dependsOn)},
   ${text(item.baselineStartDate)}, ${text(item.baselineEndDate)},
   ${text(item.baselineStartDate)}, ${text(item.baselineEndDate)},
-  ${text(item.price)}, ${nullable(item.link)}, ${text(item.notes)}, ${item.sortOrder}
+  ${text(item.price)}, ${nullable(item.link)}, ${json(item.resources)},
+  ${text(item.duration)}, ${text(item.notes)}, ${item.sortOrder}
 )
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
@@ -47,10 +52,10 @@ ON CONFLICT(id) DO UPDATE SET
   phase = excluded.phase,
   skills = excluded.skills,
   depends_on = excluded.depends_on,
-  baseline_start = excluded.baseline_start,
-  baseline_end = excluded.baseline_end,
   price = excluded.price,
   link = excluded.link,
+  resources = excluded.resources,
+  duration = excluded.duration,
   notes = excluded.notes,
   sort_order = excluded.sort_order;`)
 }
@@ -89,6 +94,15 @@ ON CONFLICT(name) DO UPDATE SET dimension = excluded.dimension;`)
 // the content.
 const meta = {
   time_zone: seed.timeZone,
+  // The anchor the plan starts on. Taken from the file when it declares one,
+  // otherwise the earliest baseline start — which is what it means anyway.
+  start_date:
+    seed.startDate ??
+    seed.items.reduce(
+      (earliest, item) =>
+        earliest === '' || item.baselineStartDate < earliest ? item.baselineStartDate : earliest,
+      '',
+    ),
   seed_version: version,
   expected_items_per_phase: JSON.stringify(seed.expectedItemsPerPhase),
   phase_windows: JSON.stringify(seed.phaseWindows),

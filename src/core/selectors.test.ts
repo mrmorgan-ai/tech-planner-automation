@@ -25,6 +25,8 @@ function item(id: string, overrides: Partial<Item> = {}): Item {
     dependsOn: [],
     price: '',
     link: null,
+    resources: [],
+    duration: '',
     notes: '',
     state: 'pending',
     completedAt: null,

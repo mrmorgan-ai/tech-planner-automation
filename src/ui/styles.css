@@ -279,8 +279,86 @@ tr.done a {
 }
 
 .col-price {
-  width: 15rem;
+  width: 9rem;
   color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.col-edit {
+  width: 3.6rem;
+}
+
+.col-resources {
+  width: 11rem;
+}
+
+.resources {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.82rem;
+}
+
+.resources a {
+  color: var(--accent);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resources a:hover {
+  text-decoration: underline;
+}
+
+.faint {
+  color: var(--faint);
+}
+
+/* Editing the plan */
+
+.icon-button {
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.icon-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.icon-button.save:hover:not(:disabled) {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.edit-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+input[type='date'] {
+  width: 100%;
+  padding: 0.2rem 0.35rem;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font: inherit;
   font-size: 0.88rem;
 }
 
@@ -351,6 +429,10 @@ select:disabled {
   color: var(--warn);
   font-size: 0.82rem;
   margin-top: 0.15rem;
+}
+
+.planned.bad {
+  color: var(--bad);
 }
 
 /* Expanded detail */

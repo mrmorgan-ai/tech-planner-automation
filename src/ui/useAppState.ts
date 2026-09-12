@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AppState, State } from '../core/types'
-import { fetchState, setItemState } from './api'
+import { fetchState, setItemDates, setItemState } from './api'
 
 export type Store = {
   state: AppState | null
@@ -8,6 +8,8 @@ export type Store = {
   /** The item currently being written, so one row can show it without freezing the rest. */
   pendingId: string | null
   changeState: (id: string, next: State) => Promise<void>
+  /** Moves an item's baseline. Resolves true when the server accepted it. */
+  changeDates: (id: string, start: string, end: string) => Promise<boolean>
 }
 
 /**
@@ -46,7 +48,21 @@ export function useAppState(): Store {
     }
   }, [])
 
-  return { state, error, pendingId, changeState }
+  const changeDates = useCallback(async (id: string, start: string, end: string) => {
+    setPendingId(id)
+    setError(null)
+    try {
+      setState(await setItemDates(id, start, end))
+      return true
+    } catch (cause: unknown) {
+      setError(messageOf(cause))
+      return false
+    } finally {
+      setPendingId(null)
+    }
+  }, [])
+
+  return { state, error, pendingId, changeState, changeDates }
 }
 
 function messageOf(cause: unknown): string {

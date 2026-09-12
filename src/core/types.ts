@@ -23,6 +23,12 @@ export type PhaseNumber = 1 | 2 | 3 | 4 | 5 | 6
  */
 export type Dimension = string
 
+/** An extra link an item carries, beyond its own `link`. */
+export type Resource = {
+  label: string
+  url: string
+}
+
 export type Item = {
   id: string
   name: string
@@ -43,6 +49,10 @@ export type Item = {
 
   price: string
   link: string | null
+  resources: Resource[]
+  /** How long it takes, as written: "~25h, 7 videos". Free text, never parsed. */
+  duration: string
+  /** A plain description of what the item is. No durations, no links. */
   notes: string
 
   state: State
@@ -75,6 +85,12 @@ export type Blackout = {
  */
 export type Roadmap = {
   timeZone: string
+  /**
+   * The day the plan starts. Baseline dates are editable, so this is the floor
+   * an edit may not go below — a mistyped year would otherwise reschedule the
+   * past in silence. Empty means no floor is configured.
+   */
+  startDate: CivilDate | ''
   phases: Phase[]
   blackouts: Blackout[]
   dimensions: Dimension[]

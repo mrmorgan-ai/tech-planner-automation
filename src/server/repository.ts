@@ -23,7 +23,7 @@ export type Env = {
 
 const ITEM_COLUMNS = `id, name, type, phase, skills, depends_on,
   baseline_start, baseline_end, projected_start, projected_end,
-  price, link, notes, state, completed_at, sort_order`
+  price, link, resources, duration, notes, state, completed_at, sort_order`
 
 /**
  * Reads the whole world in one batch. The roadmap is small enough that paging or
@@ -43,6 +43,7 @@ export async function loadAppState(db: D1Database): Promise<AppState> {
   const settings = toMeta((meta?.results ?? []) as MetaRow[])
   const roadmap: Roadmap = {
     timeZone: settings.time_zone ?? DEFAULT_TIME_ZONE,
+    startDate: settings.start_date ?? '',
     phases: ((phases?.results ?? []) as PhaseRow[]).map(toPhase),
     blackouts: ((blackouts?.results ?? []) as BlackoutRow[]).map(toBlackout),
     dimensions: ((dimensions?.results ?? []) as DimensionRow[]).map((row) => row.name),
@@ -84,10 +85,20 @@ export async function mutate(
     db
       .prepare(
         `UPDATE items
-         SET state = ?, completed_at = ?, projected_start = ?, projected_end = ?
+         SET state = ?, completed_at = ?,
+             baseline_start = ?, baseline_end = ?,
+             projected_start = ?, projected_end = ?
          WHERE id = ?`,
       )
-      .bind(item.state, item.completedAt, item.projectedStartDate, item.projectedEndDate, item.id),
+      .bind(
+        item.state,
+        item.completedAt,
+        item.baselineStartDate,
+        item.baselineEndDate,
+        item.projectedStartDate,
+        item.projectedEndDate,
+        item.id,
+      ),
   )
   writes.push(
     db.prepare("UPDATE meta SET value = ? WHERE key = 'revision'").bind(String(revision)),

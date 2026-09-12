@@ -28,6 +28,8 @@ function item(id: string, overrides: Partial<Item> = {}): Item {
     dependsOn: [],
     price: '',
     link: null,
+    resources: [],
+    duration: '',
     notes: '',
     state: 'pending',
     completedAt: null,
@@ -48,6 +50,7 @@ const phases: Phase[] = [
 function roadmap(overrides: Partial<Roadmap> = {}): Roadmap {
   return {
     timeZone: 'UTC',
+    startDate: '',
     phases,
     blackouts: [],
     dimensions: ['Alpha', 'Beta'],
