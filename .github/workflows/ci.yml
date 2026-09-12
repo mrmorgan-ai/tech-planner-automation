@@ -1,9 +1,12 @@
 name: ci
 
+# Manual only while the repository is still being built out. To turn automatic
+# runs back on, restore the push and pull_request triggers below.
 on:
-  push:
-    branches: ['**']
-  pull_request:
+  workflow_dispatch:
+  # push:
+  #   branches: ['**']
+  # pull_request:
 
 jobs:
   check:
