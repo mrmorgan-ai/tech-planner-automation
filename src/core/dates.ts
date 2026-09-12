@@ -139,3 +139,38 @@ export function startOfWeek(date: CivilDate): CivilDate {
   // Epoch day 0 is a Thursday, so +3 puts Monday at a multiple of 7.
   return fromEpochDay(day - ((day + 3) % 7))
 }
+
+/** An unbroken run of study days. */
+export type Segment = { from: CivilDate; to: CivilDate }
+
+/**
+ * A date range split into the stretches that are actually study days, dropping
+ * the declared pauses in between.
+ *
+ * The engine already skips pauses when it counts a duration, so a bar drawn as
+ * one rectangle from start to end claims work happens on days the plan says
+ * nothing happens. These are the pieces to draw instead.
+ */
+export function studySegments(
+  from: CivilDate,
+  to: CivilDate,
+  blackouts: readonly Blackout[],
+): Segment[] {
+  const segments: Segment[] = []
+  let open: Segment | null = null
+
+  for (let day = toEpochDay(from); day <= toEpochDay(to); day += 1) {
+    const date = fromEpochDay(day)
+    if (isBlackoutDay(date, blackouts)) {
+      if (open) segments.push(open)
+      open = null
+    } else if (open) {
+      open.to = date
+    } else {
+      open = { from: date, to: date }
+    }
+  }
+
+  if (open) segments.push(open)
+  return segments
+}

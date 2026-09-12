@@ -25,10 +25,13 @@ body {
   color: var(--text);
 }
 
+/* A definite height, not a minimum: the views that want to fill the screen can
+   only do so if the column they sit in knows how tall it is. The page itself no
+   longer scrolls — main does. */
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
 }
 
 header {
@@ -38,8 +41,6 @@ header {
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--line);
   background: var(--panel);
-  position: sticky;
-  top: 0;
   z-index: 3;
 }
 
@@ -64,8 +65,14 @@ nav a.active {
   color: var(--text);
 }
 
+/* A column, so a view that wants the rest of the screen can simply ask for it
+   with flex: 1 instead of guessing at a height. */
 main {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
   padding: 1.25rem;
 }
 
@@ -74,8 +81,6 @@ footer {
   border-top: 1px solid var(--line);
   font-size: 0.95rem;
   background: var(--panel);
-  position: sticky;
-  bottom: 0;
 }
 
 .muted {
@@ -117,7 +122,7 @@ footer {
   flex-direction: column;
   gap: 0.15rem;
   position: sticky;
-  top: 4rem;
+  top: 0;
 }
 
 .phase-link {
@@ -924,83 +929,251 @@ tr.detail td {
 
 /* Gantt */
 
-.gantt-legend {
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
   margin: 0 0 0.8rem;
-  font-size: 0.88rem;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
-.gantt-grid {
-  display: grid;
-  grid-template-columns: 21rem minmax(0, 1fr);
-  gap: 0.75rem;
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-.gantt-head {
+.swatch {
+  width: 1.1rem;
+  height: 0.6rem;
+  border-radius: 2px;
+  background: var(--faint);
+}
+
+.legend-plan {
+  background: rgb(255 255 255 / 0.14);
+}
+
+.legend-pending {
+  background: var(--faint);
+}
+
+.legend-running {
+  background: var(--accent);
+}
+
+.legend-done {
+  background: var(--good);
+}
+
+.legend-late {
+  background: var(--bad);
+}
+
+.legend-pause {
+  background: rgb(248 113 113 / 0.14);
+  border-left: 1px solid rgb(248 113 113 / 0.6);
+  border-right: 1px solid rgb(248 113 113 / 0.6);
+}
+
+.legend-reduced {
+  background: rgb(251 191 36 / 0.16);
+}
+
+.legend-today {
+  width: 0;
+  border-left: 2px solid var(--warn);
+  background: none;
+}
+
+/* The chart takes whatever is left under the legend, measured by the layout
+   rather than guessed at with a viewport calculation: the header, the chips and
+   the legend all change height on their own. */
+.gantt {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* One scrolling frame. The names are frozen left and the scale frozen top, so
+   the horizontal scrollbar sits at the bottom of what you are looking at
+   instead of below every row. */
+/* Shrink-to-fit, never grow: the frame keeps its natural height while every row
+   is visible, and only shrinks to the leftover space once there are more rows
+   than fit. Stretching a short phase would trade empty page for an empty box. */
+.gantt-frame {
+  flex: 0 1 auto;
+  min-height: 8rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.gantt-inner {
   position: relative;
-  height: 1.4rem;
+}
+
+.gantt-header {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
 
-.gantt-mark {
-  position: absolute;
-  top: 0;
-  transform: translateX(-50%);
-  color: var(--faint);
-  font-size: 0.8rem;
+.gantt-corner {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  flex: 0 0 336px;
+  width: 336px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
 }
 
-.gantt-body {
-  position: relative;
+.gantt-rows {
+  display: flex;
 }
 
-.gantt-row {
-  position: relative;
-  height: 1.9rem;
+.gantt-names {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  flex: 0 0 336px;
+  width: 336px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
 }
 
-.gantt-group + .gantt-group {
-  border-top: 1px solid var(--line);
-}
-
-.gantt-phase .disclosure {
-  margin-right: 0;
-}
-
-.gantt-phase {
-  display: grid;
-  grid-template-columns: 1.7rem 1.1rem minmax(0, 1fr);
+.gantt-name {
+  display: flex;
   align-items: center;
-  gap: 0.3rem;
-  width: 100%;
-  height: 1.9rem;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--text);
-  font: inherit;
-  font-size: 0.95rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.gantt-item-label {
-  height: 1.9rem;
-  padding-left: 2.5rem;
+  gap: 0.4rem;
+  height: 30px;
+  padding: 0 0.5rem 0 0.6rem;
   color: var(--muted);
   font-size: 0.82rem;
-  line-height: 1.9rem;
+}
+
+.gantt-name.focused {
+  background: rgb(255 255 255 / 0.04);
+  color: var(--text);
+}
+
+.gantt-name-text {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.gantt-blackout {
+/* The jump to the backlog only shows on the row you are pointing at, so 65 of
+   them do not compete with the names. Faded rather than hidden: a
+   visibility:hidden element cannot take focus, which would put this link out of
+   reach of the keyboard entirely. */
+.gantt-name .icon-button {
+  width: 1.3rem;
+  height: 1.3rem;
+  font-size: 0.78rem;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 80ms linear;
+}
+
+.gantt-name:hover .icon-button,
+.gantt-name .icon-button:focus-visible {
+  opacity: 1;
+}
+
+.gantt-scale {
+  position: relative;
+  height: 2.6rem;
+}
+
+.gantt-scale-weeks {
+  position: relative;
+  height: 1.3rem;
+}
+
+.gantt-week {
+  position: absolute;
+  top: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding-left: 0.25rem;
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.gantt-week.reduced em {
+  color: var(--warn);
+  font-size: 0.72rem;
+  font-style: normal;
+}
+
+.gantt-scale-days {
+  position: relative;
+  height: 1.3rem;
+}
+
+.gantt-day {
+  position: absolute;
+  top: 0;
+  text-align: center;
+  color: var(--faint);
+  font-size: 0.68rem;
+}
+
+.gantt-track {
+  position: relative;
+}
+
+.gantt-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 30px;
+}
+
+.gantt-row.focused {
+  background: rgb(255 255 255 / 0.04);
+}
+
+.gantt-band {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgb(255 255 255 / 0.04);
-  border-left: 1px solid var(--line);
-  border-right: 1px solid var(--line);
+}
+
+.gantt-band.pause {
+  background: rgb(248 113 113 / 0.07);
+  border-left: 1px solid rgb(248 113 113 / 0.4);
+  border-right: 1px solid rgb(248 113 113 / 0.4);
+}
+
+.gantt-band.reduced {
+  background: rgb(251 191 36 / 0.06);
+}
+
+.gantt-band-label {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.3rem;
+  color: var(--bad);
+  font-size: 0.7rem;
+  white-space: nowrap;
 }
 
 .gantt-today {
@@ -1008,27 +1181,24 @@ tr.detail td {
   top: 0;
   bottom: 0;
   width: 0;
-  border-left: 1px solid var(--warn);
+  border-left: 2px solid var(--warn);
+  z-index: 3;
 }
 
 .gantt-ghost {
   position: absolute;
-  top: 0.35rem;
-  height: 0.85rem;
+  top: 5px;
+  height: 18px;
   border-radius: 3px;
-  background: rgb(255 255 255 / 0.07);
+  background: rgb(255 255 255 / 0.09);
 }
 
 .gantt-bar {
   position: absolute;
-  top: 0.5rem;
-  height: 0.55rem;
+  top: 8px;
+  height: 12px;
   border-radius: 3px;
   background: var(--faint);
-}
-
-.gantt-bar.phase {
-  background: var(--accent);
 }
 
 .gantt-bar.running {
@@ -1041,4 +1211,35 @@ tr.detail td {
 
 .gantt-bar.late {
   background: var(--bad);
+}
+
+/* The piece after a pause keeps a flat left edge, so the cut reads as one item
+   resuming rather than as a second, unrelated bar. */
+.gantt-bar.resumed {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* Dependency lines, drawn only for the bar being pointed at. */
+.gantt-links {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.gantt-link path {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.gantt-link circle {
+  fill: var(--accent);
+}
+
+.gantt-outside {
+  margin: 0.7rem 0 0;
+  color: var(--warn);
+  font-size: 0.82rem;
 }

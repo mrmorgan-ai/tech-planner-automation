@@ -9,6 +9,7 @@ import {
   startOfWeek,
   studyDayAfter,
   studyDaysBetween,
+  studySegments,
   toCivilDate,
   toEpochDay,
 } from './dates'
@@ -124,5 +125,57 @@ describe('startOfWeek', () => {
 
   it('keeps Sunday in the week that started six days earlier', () => {
     expect(startOfWeek('2030-02-10')).toBe('2030-02-04')
+  })
+})
+
+describe('studySegments', () => {
+  const breaks: Blackout[] = [{ from: '2030-01-15', to: '2030-01-28', reason: 'Break' }]
+
+  it('is one segment when nothing interrupts it', () => {
+    expect(studySegments('2030-01-07', '2030-01-11', breaks)).toEqual([
+      { from: '2030-01-07', to: '2030-01-11' },
+    ])
+  })
+
+  it('splits a range that spans a pause', () => {
+    expect(studySegments('2030-01-10', '2030-02-02', breaks)).toEqual([
+      { from: '2030-01-10', to: '2030-01-14' },
+      { from: '2030-01-29', to: '2030-02-02' },
+    ])
+  })
+
+  it('drops the leading pause days', () => {
+    expect(studySegments('2030-01-15', '2030-01-30', breaks)).toEqual([
+      { from: '2030-01-29', to: '2030-01-30' },
+    ])
+  })
+
+  it('drops the trailing pause days', () => {
+    expect(studySegments('2030-01-13', '2030-01-20', breaks)).toEqual([
+      { from: '2030-01-13', to: '2030-01-14' },
+    ])
+  })
+
+  it('is empty when the whole range is a pause', () => {
+    expect(studySegments('2030-01-16', '2030-01-20', breaks)).toEqual([])
+  })
+
+  it('splits around two pauses', () => {
+    const two: Blackout[] = [
+      { from: '2030-01-10', to: '2030-01-12', reason: 'One' },
+      { from: '2030-01-20', to: '2030-01-22', reason: 'Two' },
+    ]
+
+    expect(studySegments('2030-01-08', '2030-01-24', two)).toEqual([
+      { from: '2030-01-08', to: '2030-01-09' },
+      { from: '2030-01-13', to: '2030-01-19' },
+      { from: '2030-01-23', to: '2030-01-24' },
+    ])
+  })
+
+  it('keeps a single day', () => {
+    expect(studySegments('2030-01-07', '2030-01-07', breaks)).toEqual([
+      { from: '2030-01-07', to: '2030-01-07' },
+    ])
   })
 })

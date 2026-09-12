@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { STATES } from '../core/constants'
 import {
   hasSlipped,
@@ -46,6 +47,24 @@ export function Backlog({
   const [phase, setPhase] = useState<PhaseSelection>(state.roadmap.phases[0]?.number ?? null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
+  const [params, setParams] = useSearchParams()
+
+  /**
+   * `?item=` is how the Gantt hands a row over. Opening it means switching to its
+   * phase, clearing the filter that might hide it, and expanding it — then
+   * dropping the parameter, so a later reload does not reopen it.
+   */
+  const requested = params.get('item')
+  useEffect(() => {
+    if (!requested) return
+    const target = state.items.find((item) => item.id === requested)
+    if (target) {
+      setPhase(target.phase)
+      setFilter('all')
+      setExpanded(target.id)
+    }
+    setParams({}, { replace: true })
+  }, [requested, state.items, setParams])
 
   const inPhase = state.items.filter((item) => phase === null || item.phase === phase)
   const visible = inPhase
