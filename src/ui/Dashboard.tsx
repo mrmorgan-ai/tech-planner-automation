@@ -1,93 +1,58 @@
 import { Link } from 'react-router-dom'
 import {
   activeContext,
-  coveredSkills,
   currentStreakWeeks,
   dimensionCoverage,
   inProgress,
   nextMilestone,
   overdueItems,
-  pendingSkills,
+  skillsByDimension,
   suggestedNext,
+  type Context,
 } from '../core/dashboard'
-import { phaseProgress } from '../core/selectors'
-import type { AppState, Item } from '../core/types'
+import type { AppState, CivilDate, Item } from '../core/types'
 import { Radar } from './Radar'
 
 const SHOWN_IN_PROGRESS = 5
 
 /**
- * Four blocks answering four questions: how am I doing, what am I on right now,
- * what have I covered, and what does the profile look like. The Gantt is the
- * fifth and lives in its own view, linked from here.
+ * Three blocks, top down: what today is, how the plan is going, and what the
+ * profile looks like. The order is the point — the date and the work in hand
+ * are what the page is opened for, so they are not a line in the footer.
  *
- * Numbers and dates, no progress charts — the radar is the one exception.
+ * Progress by phase is deliberately absent: the backlog's sidebar already
+ * carries done/total per phase, and a second copy is a second thing to keep
+ * true. The radar answers a different question, coverage by skill area.
  */
 export function Dashboard({ state }: { state: AppState }) {
   const { items, today, roadmap } = state
+  const context = activeContext(today, roadmap, items)
   const streak = currentStreakWeeks(items, today, roadmap.timeZone)
   const late = overdueItems(items, today)
   const milestone = nextMilestone(items, roadmap.phases, today)
-  const context = activeContext(today, roadmap, items)
   const running = inProgress(items)
-  const covered = coveredSkills(items)
-  const pending = pendingSkills(items)
+  const done = items.filter((item) => item.state === 'done').length
+  const groups = skillsByDimension(items, roadmap)
 
   return (
     <div className="dashboard">
-      <section className="block">
-        <h2>Progress</h2>
-        <div className="stats">
-          <Stat label="Streak" value={streak === 0 ? 'none' : `${streak}w`}>
-            {streak === 0 ? 'no week closed with a completion yet' : 'weeks in a row with a completion'}
-          </Stat>
-
-          <Stat label="Overdue" value={String(late.length)} bad={late.length > 0}>
-            {late.length === 0 ? 'nothing past its date' : late[0]!.name}
-          </Stat>
-
-          <Stat
-            label="Next milestone"
-            value={milestone ? `${milestone.daysAway}d` : '—'}
-            bad={milestone !== null && milestone.daysAway < 0}
-          >
-            {milestone ? `${milestone.item.name} · ${milestone.item.projectedEndDate}` : 'all closed'}
-          </Stat>
-
-          <Stat
-            label="Pace"
-            value={milestone ? signed(milestone.paceDays) : '—'}
-            bad={milestone !== null && milestone.paceDays > 0}
-            good={milestone !== null && milestone.paceDays < 0}
-          >
-            {paceReading(milestone?.paceDays)}
-          </Stat>
-
-          <Stat label="Today" value={contextValue(context)} wide>
-            {context.kind === 'blackout' ? 'planned pause, not a slip' : today}
-          </Stat>
+      <section className="block today">
+        <div className="today-head">
+          <div>
+            <div className="today-date">{longDate(today)}</div>
+            <div className="today-where">{whereYouAre(context)}</div>
+          </div>
+          <div className="today-streak">
+            <span className="stat-value">{streak === 0 ? '—' : `${streak}w`}</span>
+            <span className="stat-label">streak</span>
+          </div>
         </div>
 
-        <div className="phase-bars">
-          {roadmap.phases.map((phase) => {
-            const progress = phaseProgress(items, phase)
-            return (
-              <div key={phase.number} className="phase-row">
-                <span className="phase-index">{phase.number}</span>
-                <span className="phase-name">{phase.name}</span>
-                <span className="phase-progress">
-                  {progress.done}/{progress.total}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      </section>
-
-      <section className="block">
-        <h2>Today's tasks</h2>
         {running.length > 0 ? (
           <>
+            <h3>
+              In progress <span className="count">{running.length}</span>
+            </h3>
             <ul className="task-list">
               {running.slice(0, SHOWN_IN_PROGRESS).map((item) => (
                 <Task key={item.id} item={item} today={today} />
@@ -101,54 +66,91 @@ export function Dashboard({ state }: { state: AppState }) {
           </>
         ) : (
           <>
-            <p className="muted">Nothing in progress. Nearest by start date:</p>
+            <h3>
+              Nothing in progress <span className="count">nearest by start date</span>
+            </h3>
             <ul className="task-list">
               {suggestedNext(items).map((item) => (
                 <Task key={item.id} item={item} today={today} suggested />
               ))}
             </ul>
+            <Link className="see-all" to="/backlog">
+              pick one in the backlog
+            </Link>
           </>
         )}
       </section>
 
       <section className="block">
-        <h2>Profile</h2>
-        <Radar coverage={dimensionCoverage(items, roadmap)} />
-        <ul className="axis-list">
-          {dimensionCoverage(items, roadmap).map((entry) => (
-            <li key={entry.dimension}>
-              <span className="axis-name">{entry.dimension}</span>
-              <span className="count">
-                {entry.covered}/{entry.total}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <h2>Progress</h2>
+        <div className="stats">
+          <Stat label="Roadmap" value={`${done}/${items.length}`}>
+            <Meter ratio={items.length === 0 ? 0 : done / items.length} />
+          </Stat>
+
+          <Stat label="Overdue" value={String(late.length)} bad={late.length > 0}>
+            {late.length === 0 ? 'nothing past its date' : late[0]!.name}
+          </Stat>
+
+          <Stat
+            label="Next milestone"
+            value={milestone ? `${milestone.daysAway}d` : '—'}
+            bad={milestone !== null && milestone.daysAway < 0}
+          >
+            {milestone
+              ? `${milestone.item.name} · ${milestone.item.projectedEndDate}`
+              : 'all closed'}
+          </Stat>
+
+          <Stat
+            label="Pace"
+            value={milestone ? signed(milestone.paceDays) : '—'}
+            bad={milestone !== null && milestone.paceDays > 0}
+            good={milestone !== null && milestone.paceDays < 0}
+          >
+            {paceReading(milestone?.paceDays)}
+          </Stat>
+        </div>
       </section>
 
       <section className="block">
-        <h2>
-          Skills <span className="count">{covered.length} covered · {pending.length} pending</span>
-        </h2>
-        {covered.length === 0 ? (
-          <p className="muted">Nothing covered yet — a skill counts once an item that teaches it is done.</p>
-        ) : (
-          <div className="skills">
-            {covered.map((skill) => (
-              <span key={skill} className="skill covered">
-                {skill}
-              </span>
+        <h2>Profile</h2>
+        <div className="profile">
+          <Radar coverage={dimensionCoverage(items, roadmap)} />
+
+          <div className="axis-groups">
+            {groups.map((group) => (
+              <div key={group.dimension} className="axis-group">
+                <div className="axis-head">
+                  <span className="axis-name">{group.dimension}</span>
+                  <span className="count">
+                    {group.covered}/{group.total}
+                  </span>
+                </div>
+                <Meter ratio={group.ratio} />
+                <div className="skills">
+                  {group.skills.map((skill) => (
+                    <span
+                      key={skill.name}
+                      className={skill.covered ? 'skill covered' : 'skill'}
+                    >
+                      {skill.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-        )}
-        <div className="skills">
-          {pending.map((skill) => (
-            <span key={skill} className="skill">
-              {skill}
-            </span>
-          ))}
         </div>
       </section>
+    </div>
+  )
+}
+
+function Meter({ ratio }: { ratio: number }) {
+  return (
+    <div className="meter">
+      <div className="meter-fill" style={{ width: `${Math.round(ratio * 100)}%` }} />
     </div>
   )
 }
@@ -159,18 +161,16 @@ function Stat({
   children,
   bad,
   good,
-  wide,
 }: {
   label: string
   value: string
   children: React.ReactNode
   bad?: boolean
   good?: boolean
-  wide?: boolean
 }) {
   const tone = bad ? 'stat-value bad' : good ? 'stat-value good' : 'stat-value'
   return (
-    <div className={wide ? 'stat wide' : 'stat'}>
+    <div className="stat">
       <div className="stat-label">{label}</div>
       <div className={tone}>{value}</div>
       <div className="stat-note">{children}</div>
@@ -191,10 +191,24 @@ function Task({ item, today, suggested }: { item: Item; today: string; suggested
   )
 }
 
-function contextValue(context: ReturnType<typeof activeContext>): string {
-  if (context.kind === 'blackout') return context.blackout.reason
-  if (context.kind === 'phase') return `Phase ${context.phase.number}`
-  return 'outside the plan'
+/**
+ * The civil date read as a date. Noon UTC, so naming the weekday can never
+ * land a day off the string it came from.
+ */
+function longDate(date: CivilDate): string {
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString('en', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
+function whereYouAre(context: Context): string {
+  if (context.kind === 'blackout') return `${context.blackout.reason} — a planned pause`
+  if (context.kind === 'phase') return `Phase ${context.phase.number} · ${context.phase.name}`
+  return 'outside the planned range'
 }
 
 function paceReading(days: number | undefined): string {

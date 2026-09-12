@@ -1,4 +1,4 @@
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { Backlog } from './Backlog'
 import { Dashboard } from './Dashboard'
 import { Gantt } from './Gantt'
@@ -28,7 +28,9 @@ export function App() {
   return (
     <div className="app">
       <header>
-        <strong>Planify</strong>
+        <Link className="brand" to="/dashboard">
+          Planify
+        </Link>
         <nav>
           {VIEWS.map((view) => (
             <NavLink key={view.path} to={view.path}>

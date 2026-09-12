@@ -9,6 +9,7 @@ import {
   overdueItems,
   pendingSkills,
   phaseRange,
+  skillsByDimension,
   suggestedNext,
 } from './dashboard'
 import type { Item, Phase, Roadmap } from './types'
@@ -284,5 +285,49 @@ describe('dimensionCoverage', () => {
     )
 
     expect(coverage.every((entry) => entry.total === 0)).toBe(true)
+  })
+})
+
+describe('skillsByDimension', () => {
+  const world = roadmap({
+    skillDimension: { Docker: 'Alpha', Kubernetes: 'Alpha', MLflow: 'Beta', Triton: 'Beta' },
+  })
+
+  it('puts covered skills first inside each axis', () => {
+    const items = [
+      done('a', '2030-02-01T10:00:00Z', { skills: ['Kubernetes'] }),
+      item('b', { skills: ['Docker'] }),
+    ]
+
+    expect(skillsByDimension(items, world)[0]).toEqual({
+      dimension: 'Alpha',
+      covered: 1,
+      total: 2,
+      ratio: 0.5,
+      skills: [
+        { name: 'Kubernetes', covered: true },
+        { name: 'Docker', covered: false },
+      ],
+    })
+  })
+
+  it('returns an axis with no skills rather than dropping it', () => {
+    const only = roadmap({ skillDimension: { Docker: 'Alpha' } })
+
+    expect(skillsByDimension([], only)[1]).toEqual({
+      dimension: 'Beta',
+      covered: 0,
+      total: 0,
+      ratio: 0,
+      skills: [],
+    })
+  })
+
+  it('agrees with the radar it feeds', () => {
+    const items = [done('a', '2030-02-01T10:00:00Z', { skills: ['Docker'] })]
+
+    expect(dimensionCoverage(items, world).map((entry) => entry.ratio)).toEqual(
+      skillsByDimension(items, world).map((entry) => entry.ratio),
+    )
   })
 })

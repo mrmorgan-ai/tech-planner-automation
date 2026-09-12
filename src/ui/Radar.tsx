@@ -1,8 +1,11 @@
 import type { DimensionCoverage } from '../core/dashboard'
 
-const SIZE = 260
+const SIZE = 340
 const CENTER = SIZE / 2
-const RADIUS = 88
+const RADIUS = 108
+// Horizontal room for the vertex labels, so they live inside the element's own
+// box. Relying on overflow put them 29px into the column beside the chart.
+const PAD = 70
 const RINGS = [0.25, 0.5, 0.75, 1]
 
 /**
@@ -26,7 +29,12 @@ export function Radar({ coverage }: { coverage: DimensionCoverage[] }) {
     ratios.map((ratio, index) => point(index, ratio).join(',')).join(' ')
 
   return (
-    <svg className="radar" viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="Skills radar">
+    <svg
+      className="radar"
+      viewBox={`${-PAD} 0 ${SIZE + PAD * 2} ${SIZE}`}
+      role="img"
+      aria-label="Skills radar"
+    >
       {RINGS.map((ring) => (
         <polygon
           key={ring}
@@ -48,7 +56,7 @@ export function Radar({ coverage }: { coverage: DimensionCoverage[] }) {
       })}
 
       {coverage.map((entry, index) => {
-        const [x, y] = point(index, 1.22)
+        const [x, y] = point(index, 1.17)
         return (
           <text
             key={entry.dimension}
@@ -66,7 +74,7 @@ export function Radar({ coverage }: { coverage: DimensionCoverage[] }) {
   )
 }
 
-/** Labels on the left of the centre read outward, so they never sit on the shape. */
+/** Labels left of the centre read outward, so they never sit on the shape. */
 function anchorFor(x: number): 'start' | 'middle' | 'end' {
   if (Math.abs(x - CENTER) < 6) return 'middle'
   return x > CENTER ? 'start' : 'end'

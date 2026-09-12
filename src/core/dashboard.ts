@@ -145,32 +145,52 @@ export type DimensionCoverage = {
   ratio: number
 }
 
+export type DimensionSkills = DimensionCoverage & {
+  /** Every skill on that axis, covered ones first, each alphabetical. */
+  skills: { name: string; covered: boolean }[]
+}
+
 /**
- * The radar, as numbers. An aggregation of the covered/pending split by
- * dimension — if that split is right, the radar is right.
+ * The skill map arranged the way it is actually read: by dimension, not as one
+ * heap of seventy-four names. Each axis carries its own count and its own
+ * skills, so a group answers "how far along this axis am I" on its own.
  */
-export function dimensionCoverage(items: readonly Item[], roadmap: Roadmap): DimensionCoverage[] {
+export function skillsByDimension(items: readonly Item[], roadmap: Roadmap): DimensionSkills[] {
   const covered = new Set(coveredSkills(items))
-  const totals = new Map<Dimension, { covered: number; total: number }>(
-    roadmap.dimensions.map((dimension) => [dimension, { covered: 0, total: 0 }]),
+  const groups = new Map<Dimension, { name: string; covered: boolean }[]>(
+    roadmap.dimensions.map((dimension) => [dimension, []]),
   )
 
   for (const [skill, dimension] of Object.entries(roadmap.skillDimension)) {
-    const entry = totals.get(dimension)
-    if (!entry) continue
-    entry.total += 1
-    if (covered.has(skill)) entry.covered += 1
+    groups.get(dimension)?.push({ name: skill, covered: covered.has(skill) })
   }
 
   return roadmap.dimensions.map((dimension) => {
-    const entry = totals.get(dimension) ?? { covered: 0, total: 0 }
+    const skills = (groups.get(dimension) ?? []).sort(
+      (a, b) => Number(b.covered) - Number(a.covered) || a.name.localeCompare(b.name),
+    )
+    const done = skills.filter((skill) => skill.covered).length
     return {
       dimension,
-      covered: entry.covered,
-      total: entry.total,
-      ratio: entry.total === 0 ? 0 : entry.covered / entry.total,
+      covered: done,
+      total: skills.length,
+      ratio: skills.length === 0 ? 0 : done / skills.length,
+      skills,
     }
   })
+}
+
+/**
+ * The radar, as numbers. The same counts as the groups above with the names
+ * dropped — one computation, so the chart and the list can never disagree.
+ */
+export function dimensionCoverage(items: readonly Item[], roadmap: Roadmap): DimensionCoverage[] {
+  return skillsByDimension(items, roadmap).map(({ dimension, covered, total, ratio }) => ({
+    dimension,
+    covered,
+    total,
+    ratio,
+  }))
 }
 
 function unique(values: readonly string[]): string[] {
