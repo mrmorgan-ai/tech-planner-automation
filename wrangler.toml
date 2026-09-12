@@ -1,0 +1,12 @@
+name = "planify"
+compatibility_date = "2026-09-01"
+pages_build_output_dir = "dist"
+
+# Replace database_id with the value printed by `wrangler d1 create planify`.
+# Local development works with the placeholder: `--local` keys its SQLite file
+# off the binding name, not the id.
+[[d1_databases]]
+binding = "DB"
+database_name = "planify"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"

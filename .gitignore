@@ -220,29 +220,32 @@ __marimo__/
 .claude/
 
 # ---------------------------------------------------------------------------
-# tech-planner
+# planify
 # ---------------------------------------------------------------------------
 
-# Real configuration. config/settings.example.py is the tracked template.
-# Nothing here is a credential — the tool uses your Claude Code login — but the
-# org, project and area paths are yours, not the repository's.
-config/settings.py
-
-# Context documents the user attaches for a planning session.
-context/
-
-# Clean working directory the agent subprocess runs in. Kept (empty) in git so
-# a fresh clone has one, but nothing that lands in it belongs to the repo.
-workspace/*
-!workspace/.gitkeep
-
-# Saved planning sessions.
-.tech-planner/
-
-# Node, for the Phase 3 web app.
 node_modules/
 dist/
 
-# Lockfiles ARE tracked, deliberately — both uv.lock and package-lock.json.
-!uv.lock
+# Wrangler's local state, including the local D1 SQLite file.
+.wrangler/
+
+# Generated seed SQL. seed/items.json is the tracked source of truth.
+build/
+
+# Local secrets for `wrangler pages dev`. There are none today; if one appears,
+# it belongs here and never in wrangler.toml.
+.dev.vars
+
+# The lockfile IS tracked, deliberately.
 !package-lock.json
+
+# The app is open, the roadmap is not. Everything below is personal content:
+# the spec and planning documents, and the seed that carries the items, the
+# phase names, the non-study periods and the skill map. Its durable home is the
+# D1 database — `npm run seed:export` brings it back down to a file.
+#
+# seed/roadmap.example.json IS tracked: it documents the shape and is what CI
+# validates the rules against without seeing the real roadmap.
+docs/
+seed/*
+!seed/*.example.json

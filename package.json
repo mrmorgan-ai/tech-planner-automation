@@ -1,0 +1,39 @@
+{
+  "name": "planify",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Roadmap tracker with dependency-aware date recalculation",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "predev:api": "vite build",
+    "dev:api": "wrangler pages dev --port 8788",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "seed:validate": "vitest run tools/seed",
+    "seed:sql": "node tools/seed/to-sql.mjs",
+    "seed:export": "node tools/seed/from-d1.mjs --remote",
+    "seed:export:local": "node tools/seed/from-d1.mjs --local",
+    "db:migrate:local": "wrangler d1 migrations apply planify --local",
+    "db:migrate": "wrangler d1 migrations apply planify --remote"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260911.1",
+    "@types/node": "^22.20.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.131.1"
+  }
+}
