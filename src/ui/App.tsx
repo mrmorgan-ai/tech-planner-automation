@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
-
-type Health = { ok: boolean; today: string; items: number }
+import { Backlog } from './Backlog'
+import { useAppState } from './useAppState'
 
 const VIEWS = [
   { path: '/dashboard', label: 'Dashboard' },
@@ -20,15 +19,8 @@ function Placeholder({ view }: { view: string }) {
 }
 
 export function App() {
-  const [health, setHealth] = useState<Health | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
-      .then(setHealth)
-      .catch((err: Error) => setError(err.message))
-  }, [])
+  const store = useAppState()
+  const { state, error } = store
 
   return (
     <div className="app">
@@ -44,20 +36,24 @@ export function App() {
       </header>
 
       <main>
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          {VIEWS.map((view) => (
-            <Route key={view.path} path={view.path} element={<Placeholder view={view.label} />} />
-          ))}
-          <Route path="*" element={<Placeholder view="Not found" />} />
-        </Routes>
+        {!state && !error && <p className="empty">Loading the roadmap…</p>}
+        {state && (
+          <Routes>
+            <Route path="/" element={<Navigate to="/backlog" replace />} />
+            <Route path="/backlog" element={<Backlog {...store} state={state} />} />
+            {VIEWS.filter((view) => view.path !== '/backlog').map((view) => (
+              <Route key={view.path} path={view.path} element={<Placeholder view={view.label} />} />
+            ))}
+            <Route path="*" element={<Placeholder view="Not found" />} />
+          </Routes>
+        )}
       </main>
 
       <footer>
-        {error && <span className="bad">api: {error}</span>}
-        {health && (
-          <span className="good">
-            api ok · today {health.today} · {health.items} items in D1
+        {error && <span className="bad">{error}</span>}
+        {state && (
+          <span className="muted">
+            today {state.today} · {state.items.length} items
           </span>
         )}
       </footer>

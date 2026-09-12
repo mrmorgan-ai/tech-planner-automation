@@ -229,6 +229,9 @@ dist/
 # Wrangler's local state, including the local D1 SQLite file.
 .wrangler/
 
+# Pids and logs of the processes `make start` launches.
+.dev/
+
 # Generated SQL from the seed. Rebuilt with `npm run seed:sql`.
 build/
 
